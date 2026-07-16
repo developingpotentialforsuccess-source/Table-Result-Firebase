@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "Level": {
+      "title": "Level",
+      "description": "Grading structure for a specific level.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "subjects": { "type": "array" },
+        "gradingScale": { "type": "array" }
+      },
+      "required": ["id", "name", "subjects"]
+    },
+    "ClassRecord": {
+      "title": "Class Record",
+      "description": "A class record metadata (without students).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "termName": { "type": "string" },
+        "className": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "levelId": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "termName", "className", "teacherName", "levelId"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student record with grades and attendance.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sex": { "enum": ["Male", "Female"] },
+        "scores": { "type": "object" },
+        "attendance": { "type": "string" },
+        "comment": { "type": "string" }
+      },
+      "required": ["id", "name", "sex", "scores"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/levels/{levelId}": {
+      "schema": { "$ref": "#/entities/Level" },
+      "description": "User's customized levels"
+    },
+    "/users/{userId}/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassRecord" },
+      "description": "User's class records (metadata)"
+    },
+    "/users/{userId}/classes/{classId}/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Students within a class"
+    }
+  }
+}

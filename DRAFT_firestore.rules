@@ -1,0 +1,108 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Entity Validations ---
+
+    function isValidLevel(data) {
+      return data.keys().hasAll(['id', 'name', 'subjects'])
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.subjects is list && data.subjects.size() <= 100
+        && (data.keys().size() >= 3 && data.keys().size() <= 20); // Allow some optional fields
+    }
+
+    function isValidClassRecord(data) {
+      return data.keys().hasAll(['id', 'termName', 'className', 'teacherName', 'levelId'])
+        && data.id is string && data.id.size() <= 128
+        && data.termName is string && data.termName.size() <= 100
+        && data.className is string && data.className.size() <= 100
+        && data.teacherName is string && data.teacherName.size() <= 100
+        && data.levelId is string && data.levelId.size() <= 128
+        && (data.keys().size() >= 5 && data.keys().size() <= 30); // Allow optional fields like settings
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['id', 'name', 'sex', 'scores'])
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.sex in ['Male', 'Female']
+        && data.scores is map
+        && (data.keys().size() >= 4 && data.keys().size() <= 20);
+    }
+
+    // --- Collection Matches ---
+
+    match /users/{userId} {
+      // Levels
+      match /levels/{levelId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) 
+          && isValidId(levelId) 
+          && isValidLevel(incoming());
+        allow update: if isOwner(userId) 
+          && isValidId(levelId) 
+          && isValidLevel(incoming())
+          && incoming().id == existing().id; // ID is immutable
+        allow delete: if isOwner(userId) && isValidId(levelId);
+      }
+
+      // Classes
+      match /classes/{classId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) 
+          && isValidId(classId) 
+          && isValidClassRecord(incoming());
+        allow update: if isOwner(userId) 
+          && isValidId(classId) 
+          && isValidClassRecord(incoming())
+          && incoming().id == existing().id; // ID is immutable
+        allow delete: if isOwner(userId) && isValidId(classId);
+
+        // Students Subcollection
+        match /students/{studentId} {
+          allow read: if isOwner(userId);
+          allow create: if isOwner(userId) 
+            && isValidId(studentId) 
+            && isValidStudent(incoming());
+          allow update: if isOwner(userId) 
+            && isValidId(studentId) 
+            && isValidStudent(incoming())
+            && incoming().id == existing().id; // ID is immutable
+          allow delete: if isOwner(userId) && isValidId(studentId);
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,132 @@
+#!/bin/bash
+# Apply patch to App.tsx
+
+cat << 'INNER_EOF' > app.patch
+--- src/App.tsx
++++ src/App.tsx
+@@ -23,6 +23,7 @@
+   Download,
+   Maximize,
+   Minimize,
++  Clipboard,
+ } from "lucide-react";
+ import {
+   ClassRecord,
+@@ -35,6 +36,7 @@
+ import { PAPER_STYLES, WALLPAPERS, SYSTEM_TEMPLATES } from "./types";
+ import ClassDashboard from "./components/ClassDashboard";
+ import GradeTable from "./components/GradeTable";
++import { parsePastedClassProfile } from "./lib/parsePaste";
+ import LevelSettings from "./components/LevelSettings";
+ import {
+   auth,
+@@ -948,6 +950,22 @@
+         } else {
+           throw new Error("The selected template contains no levels or could not be found.");
+         }
++      } else if (classCreationSource === "paste") {
++        if (cleanAccessCode !== "dp-s-s") {
++          throw new Error("You must use the access code 'DP-S-S' to use the Paste feature.");
++        }
++        const parsedSubjects = parsePastedClassProfile(newPastedContent);
++        const newPastedLevelId = "level_" + Math.random().toString(36).substr(2, 9);
++        const copiedLevel: Level = {
++          id: newPastedLevelId,
++          name: newClassName.trim() + " Profile",
++          subjects: parsedSubjects,
++          gradingScale: levels[0]?.gradingScale || [],
++          statusScale: levels[0]?.statusScale || [],
++          attendanceWeight: 100, // Make attendance standalone 100
++        };
++        await saveLevel(user.uid, copiedLevel);
++        resolvedLevelId = newPastedLevelId;
+       } else if (classCreationSource === "existing") {
+         if (!selectedTemplateId) {
+           throw new Error("Please select an existing class to load from.");
+@@ -2303,7 +2321,7 @@
+                   <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                     How would you like to set up this class?
+                   </label>
+-                  <div className="grid grid-cols-3 gap-2">
++                  <div className="grid grid-cols-4 gap-2">
+                     <button
+                       type="button"
+                       onClick={() => {
+@@ -2313,6 +2331,7 @@
+                         setNewTermName("Term 1, 2026");
+                         setNewTeacherName(user?.displayName || "Teacher Name");
+                         setNewLevelId(levels[0]?.id || "");
++                        setNewPastedContent("");
+                         setCopyStudentsFromTemplate(false);
+                       }}
+                       className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+@@ -2333,6 +2352,7 @@
+                         setNewClassName("");
+                         setNewTermName("Term 1, 2026");
+                         setNewTeacherName(user?.displayName || "Teacher Name");
++                        setNewPastedContent("");
+                       }}
+                       className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                         classCreationSource === "existing"
+@@ -2351,6 +2371,7 @@
+                         setNewTermName("Term 1, 2026");
+                         setNewTeacherName(user?.displayName || "Teacher Name");
+                         setCopyStudentsFromTemplate(false);
++                        setNewPastedContent("");
+                       }}
+                       className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                         classCreationSource === "template"
+@@ -2362,6 +2383,27 @@
+                       <Sparkles className="w-5 h-5 mb-1 text-purple-600" />
+                       <span className="text-[10px] uppercase tracking-wider font-extrabold">Template & Sync</span>
+                     </button>
++                    <button
++                      type="button"
++                      onClick={() => {
++                        setClassCreationSource("paste");
++                        setSelectedTemplateId("");
++                        setSelectedTemplateLibraryId("");
++                        setNewClassName("");
++                        setNewTermName("Term 1, 2026");
++                        setNewTeacherName(user?.displayName || "Teacher Name");
++                        setNewAccessCode("DP-S-S");
++                        setCopyStudentsFromTemplate(false);
++                      }}
++                      className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
++                        classCreationSource === "paste"
++                          ? "border-green-500 bg-green-50 text-green-700 font-bold shadow-sm"
++                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
++                      }`}
++                    >
++                      <Clipboard className="w-5 h-5 mb-1 text-green-600" />
++                      <span className="text-[10px] uppercase tracking-wider font-extrabold">Paste Text</span>
++                    </button>
+                   </div>
+                 </div>
+ 
+@@ -2488,6 +2530,22 @@
+                     </p>
+                   </div>
+                 )}
++
++                {classCreationSource === "paste" && (
++                  <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50/50 border border-green-100 rounded-xl space-y-2 animate-in fade-in slide-in-from-top-2 duration-150">
++                    <div className="flex items-center gap-1.5 text-green-800">
++                      <Clipboard className="w-3.5 h-3.5" />
++                      <label className="block text-[10px] font-black uppercase tracking-widest">
++                        Paste Template Content
++                      </label>
++                    </div>
++                    <textarea
++                      value={newPastedContent}
++                      onChange={(e) => setNewPastedContent(e.target.value)}
++                      placeholder="Paste your class profile text here... (e.g. Reading 70%, Dictation 30%)"
++                      className="w-full px-3.5 py-2.5 text-sm bg-white border border-green-200 focus:border-green-500 focus:ring-1 focus:ring-green-500/20 rounded-xl outline-none text-slate-700 transition-all min-h-[120px]"
++                    />
++                  </div>
++                )}
+ 
+                 <div>
+INNER_EOF
+
+patch -p0 < app.patch

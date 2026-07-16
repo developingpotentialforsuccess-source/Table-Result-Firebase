@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@layer utilities {
+  /* Hide number input spinners */
+  .no-spinners::-webkit-inner-spin-button,
+  .no-spinners::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spinners {
+    -moz-appearance: textfield;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media print {
+  /* Hide the eye icons and buttons when printing */
+  button {
+    display: none !important;
+  }
+  
+  /* Make inputs look like normal text when printing */
+  input[type="number"], input[type="text"] {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
