@@ -76,6 +76,7 @@ import {
   subscribeToClasses,
   subscribeToStudents,
   saveLevel,
+  saveLevelsBatch,
   saveClassRecord,
   saveStudent,
   saveStudentsBatch,
@@ -476,6 +477,12 @@ export default function App() {
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedTerm, setSelectedTerm] = useState<string>("all");
   const [showArchived, setShowArchived] = useState<boolean>(false);
+  const [isLevelsLoading, setIsLevelsLoading] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
+  const [showCreateLevelModal, setShowCreateLevelModal] = useState(false);
+  const [levelToRename, setLevelToRename] = useState<Level | null>(null);
+  const [newLevelProfileName, setNewLevelProfileName] = useState("");
+  const hasInitializedLevelsRef = useRef(false);
 
   const [unlockedClassIds, setUnlockedClassIds] = useState<string[]>(() => {
     try {
@@ -571,24 +578,27 @@ export default function App() {
   };
 
   useEffect(() => {
-    // Auth disabled temporarily as requested
-    /*
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthLoading(false);
     });
     return () => unsubscribe();
-    */
-    setAuthLoading(false);
   }, []);
 
   useEffect(() => {
     if (!user) return;
+    setIsLevelsLoading(true);
+    setInitError(null);
+
     const unsubLevels = subscribeToLevels(user.uid, (fetchedLevels) => {
-      if (fetchedLevels.length === 0) {
+      setIsLevelsLoading(false);
+      if (fetchedLevels.length === 0 && !hasInitializedLevelsRef.current) {
+        hasInitializedLevelsRef.current = true;
         // Initialize default levels for new users
         setLevels(sortLevels(DEFAULT_LEVELS));
-        DEFAULT_LEVELS.forEach((l) => saveLevel(user.uid, l));
+        saveLevelsBatch(user.uid, DEFAULT_LEVELS).catch(err => {
+          console.error("Failed to seed default levels:", err);
+        });
       } else {
         setLevels(sortLevels(fetchedLevels));
       }
@@ -1454,33 +1464,38 @@ export default function App() {
 
   const handleCreateLevel = () => {
     if (!user) return;
-    const name = prompt(
-      "Enter a name for the new level profile:",
-      "Level One Foundation One",
-    );
-    if (name === null) return; // User cancelled
-    const finalName = name.trim() || "New Level";
-    const newLevel: Level = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: finalName,
-      subjects: [],
-      gradingScale: DEFAULT_GRADING_SCALE,
-    };
-    saveLevel(user.uid, newLevel);
-    handleUpdateCurrentRecord("levelId", newLevel.id);
+    setNewLevelProfileName("Level One Foundation One");
+    setLevelToRename(null);
+    setShowCreateLevelModal(true);
+  };
+
+  const handleConfirmCreateLevel = () => {
+    if (!user || !newLevelProfileName.trim()) return;
+    const finalName = newLevelProfileName.trim();
+    
+    if (levelToRename) {
+      const updated = { ...levelToRename, name: finalName };
+      saveLevel(user.uid, updated);
+      setLevelToRename(null);
+    } else {
+      const newLevel: Level = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: finalName,
+        subjects: [],
+        gradingScale: DEFAULT_GRADING_SCALE,
+      };
+      saveLevel(user.uid, newLevel);
+      handleUpdateCurrentRecord("levelId", newLevel.id);
+    }
+    setShowCreateLevelModal(false);
+    setNewLevelProfileName("");
   };
 
   const handleRenameLevel = () => {
     if (!user || !currentLevel) return;
-    const name = prompt(
-      "Enter a new name for this level profile:",
-      currentLevel.name,
-    );
-    if (name === null) return;
-    const finalName = name.trim();
-    if (!finalName) return;
-    const updated = { ...currentLevel, name: finalName };
-    saveLevel(user.uid, updated);
+    setNewLevelProfileName(currentLevel.name);
+    setLevelToRename(currentLevel);
+    setShowCreateLevelModal(true);
   };
 
   const handleDeleteLevel = () => {
@@ -1871,8 +1886,7 @@ export default function App() {
     return Array.from(termsSet).sort();
   }, [levels]);
 
-  // Skip auth checks for now
-  if (false && authLoading) {
+  if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-slate-500 animate-pulse">Loading...</div>
@@ -1880,8 +1894,7 @@ export default function App() {
     );
   }
 
-  // Skip user check
-  if (false && !user) {
+  if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
         <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-slate-200 max-w-sm w-full">
@@ -1892,7 +1905,7 @@ export default function App() {
             Teacher Grade Calculator
           </h2>
           <p className="text-slate-500 mb-6">
-            Sign in to manage your classes and grading structures.
+            Sign in to manage your classes and grading structures with real-time sync.
           </p>
           <button
             onClick={handleLogin}
@@ -1905,16 +1918,46 @@ export default function App() {
     );
   }
 
-  if (levels.length === 0) {
+  if (isLevelsLoading || (levels.length === 0 && !initError)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-center mb-4">
+            <Database className="w-10 h-10 text-blue-500 animate-pulse" />
+          </div>
           <h2 className="text-xl font-semibold text-slate-800 mb-2">
             Initializing Data
           </h2>
           <p className="text-slate-500 mb-4 animate-pulse">
-            Setting up your default levels...
+            Connecting to Firestore and setting up your default levels...
           </p>
+          <div className="w-48 h-1 bg-slate-100 rounded-full mx-auto overflow-hidden">
+            <div className="h-full bg-blue-500 animate-[loading_2s_ease-in-out_infinite]" style={{ width: '40%' }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-red-200 max-w-md">
+          <div className="flex justify-center mb-4">
+            <AlertTriangle className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">
+            Connection Error
+          </h2>
+          <p className="text-red-500 mb-6 text-sm">
+            {initError}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
+          >
+            Retry Connection
+          </button>
         </div>
       </div>
     );
@@ -2926,6 +2969,57 @@ export default function App() {
                 >
                   <Plus className="w-4 h-4" />
                   Create From Template
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showCreateLevelModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-lg font-black tracking-tight text-slate-800 uppercase flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-blue-600" />
+                  {levelToRename ? "Rename Level Profile" : "New Level Profile"}
+                </h3>
+                <button onClick={() => setShowCreateLevelModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                  Profile Name
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={newLevelProfileName}
+                  onChange={(e) => setNewLevelProfileName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleConfirmCreateLevel()}
+                  placeholder="e.g. Foundation Level A"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-inner"
+                />
+                <p className="text-[10px] text-slate-500 mt-3 font-medium leading-relaxed">
+                  {levelToRename 
+                    ? "Updating the name will help you identify this grading structure when creating new classes." 
+                    : "Create a new profile to define subjects, assignments, and test weights from scratch."}
+                </p>
+              </div>
+              <div className="p-4 bg-slate-50/80 border-t border-slate-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowCreateLevelModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 uppercase tracking-widest"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmCreateLevel}
+                  disabled={!newLevelProfileName.trim()}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-md shadow-blue-200 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {levelToRename ? "Update Profile" : "Create Profile"}
+                  <Check className="w-4 h-4" />
                 </button>
               </div>
             </div>

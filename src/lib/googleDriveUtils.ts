@@ -17,12 +17,20 @@ export interface DriveFile {
  * Gets the current access token from the AI Studio proxy.
  */
 async function getAccessToken(): Promise<string> {
-  const response = await fetch('/.aistudio/proxy/auth/token?scope=https://www.googleapis.com/auth/drive.file');
-  if (!response.ok) {
-    throw new Error('Failed to retrieve Google Drive access token. Please ensure you have authorized the app.');
+  try {
+    const response = await fetch('/.aistudio/proxy/auth/token?scope=https://www.googleapis.com/auth/drive.file');
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Google Drive integration via AI Studio is not available in this environment (e.g. Vercel).');
+      }
+      throw new Error('Failed to retrieve Google Drive access token. Please ensure you have authorized the app in AI Studio.');
+    }
+    const data = await response.json();
+    return data.access_token;
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('not available')) throw err;
+    throw new Error('Google Drive access is only supported within the AI Studio preview environment.');
   }
-  const data = await response.json();
-  return data.access_token;
 }
 
 /**

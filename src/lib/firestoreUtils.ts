@@ -126,6 +126,34 @@ export async function saveLevel(userId: string, level: Level) {
   }
 }
 
+export async function saveLevelsBatch(userId: string, levels: Level[]) {
+  if (!isFirebaseConfigured()) {
+    const currentLevels = getLocalLevels(userId);
+    levels.forEach(newLevel => {
+      const index = currentLevels.findIndex(l => l.id === newLevel.id);
+      if (index !== -1) {
+        currentLevels[index] = newLevel;
+      } else {
+        currentLevels.push(newLevel);
+      }
+    });
+    setLocalLevels(userId, currentLevels);
+    return;
+  }
+
+  const path = `users/${userId}/levels (batch)`;
+  try {
+    const batch = writeBatch(db);
+    levels.forEach(level => {
+      const levelRef = doc(db, 'users', userId, 'levels', level.id);
+      batch.set(levelRef, level);
+    });
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
 export async function deleteLevel(userId: string, levelId: string) {
   if (!isFirebaseConfigured()) {
     const levels = getLocalLevels(userId);
@@ -211,12 +239,17 @@ export async function saveStudentsBatch(userId: string, classId: string, batchSt
 
   const path = `users/${userId}/classes/${classId}/students (batch)`;
   try {
-    const batch = writeBatch(db);
-    batchStudents.forEach(student => {
-      const studentRef = doc(db, 'users', userId, 'classes', classId, 'students', student.id);
-      batch.set(studentRef, student);
-    });
-    await batch.commit();
+    // Firestore batch has a limit of 500 operations. We need to chunk the student list.
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < batchStudents.length; i += CHUNK_SIZE) {
+      const chunk = batchStudents.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach(student => {
+        const studentRef = doc(db, 'users', userId, 'classes', classId, 'students', student.id);
+        batch.set(studentRef, student);
+      });
+      await batch.commit();
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
