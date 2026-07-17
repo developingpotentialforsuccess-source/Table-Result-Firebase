@@ -11,7 +11,7 @@ import {
 } from "../types";
 import { isMidtermCategory, isFinalCategory, getStudentScoreValue, isSubjectActiveInMode } from "../lib/categoryUtils";
 import { calculateAttendancePercentage } from "../lib/attendanceUtils";
-import { Trash2, ArrowUpDown, EyeOff, Eye, SlidersHorizontal, ClipboardPaste, Wand2, Search, X, ChevronDown, ChevronUp, BarChart3, Award, CheckCircle2, AlertTriangle, BookOpen, Calendar, Plus } from "lucide-react";
+import { Trash2, ArrowUpDown, EyeOff, Eye, SlidersHorizontal, ClipboardPaste, Wand2, Search, X, ChevronDown, ChevronUp, BarChart3, Award, CheckCircle2, AlertTriangle, BookOpen, Calendar, Plus, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 const TrendLine = ({ data }: { data: number[] }) => {
@@ -1877,7 +1877,31 @@ export default function GradeTable({
             const isMidtermOrFinal = resultMode === 'midterm' || resultMode === 'final';
             
             const computedAttendance = settings?.showAttendance !== false ? `${calculateAttendancePercentage(student, settings).toFixed(2)}%` : student.attendance;
-            const status = calculateStatus(finalScore, resultMode, settings, computedAttendance, level);
+            
+            // Completion check
+            const isGradingComplete = (() => {
+              const activeSubjects = level.subjects.filter(s => !s.isHidden);
+              if (activeSubjects.length === 0) return true;
+              
+              let missingAny = false;
+              activeSubjects.forEach(subject => {
+                subject.categories.forEach(cat => {
+                  const isActive = isSubjectActiveInMode(cat, resultMode);
+                  if (!isActive) return;
+                  
+                  for (let i = 0; i < cat.itemCount; i++) {
+                    const val = getStudentScoreValue(student.scores, cat.id, i, resultMode, cat);
+                    if (val === undefined || val === null) {
+                      missingAny = true;
+                    }
+                  }
+                });
+              });
+              return !missingAny;
+            })();
+
+            const rawStatus = calculateStatus(finalScore, resultMode, settings, computedAttendance, level);
+            const status = isGradingComplete ? rawStatus : "In Progress";
 
             // Determine color for the average score
             let scoreColor = "text-slate-900";
@@ -2355,17 +2379,22 @@ export default function GradeTable({
                         </td>
                       );
                     })()}
-                    <td className={`px-2 py-2 ${scoreBg} text-center border-l border-b ${gridStyles.totalBorderClass} min-w-[70px]`}>
+                    <td className={`px-2 py-2 ${scoreBg} text-center border-l border-b ${gridStyles.totalBorderClass} min-w-[100px]`}>
                       <div className="flex flex-col items-center">
                         <span
-                          className={`text-xs font-black px-2 py-1 rounded border ${
-                            status.toLowerCase().includes("pass")
-                              ? "text-emerald-700 bg-emerald-50 border-emerald-100"
-                              : status.toLowerCase().includes("repeat")
-                                ? "text-orange-700 bg-orange-50 border-orange-100"
-                                : "text-red-600 bg-red-50 border-red-100"
+                          className={`text-[10px] font-black px-2 py-1 rounded-full border shadow-sm flex items-center gap-1 uppercase tracking-tight ${
+                            status === "In Progress"
+                              ? "text-slate-500 bg-slate-100 border-slate-200"
+                              : status.toLowerCase().includes("pass")
+                                ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+                                : status.toLowerCase().includes("repeat")
+                                  ? "text-orange-700 bg-orange-50 border-orange-100"
+                                  : "text-red-600 bg-red-50 border-red-100"
                           }`}
                         >
+                          {status === "In Progress" && <RefreshCw className="w-2.5 h-2.5 animate-spin" />}
+                          {status.toLowerCase().includes("pass") && <CheckCircle2 className="w-2.5 h-2.5" />}
+                          {(status.toLowerCase().includes("fail") || status.toLowerCase().includes("repeat")) && status !== "In Progress" && <AlertTriangle className="w-2.5 h-2.5" />}
                           {status}
                         </span>
                       </div>

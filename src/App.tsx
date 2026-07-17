@@ -513,6 +513,7 @@ export default function App() {
   const [showCreateLevelModal, setShowCreateLevelModal] = useState(false);
   const [levelToRename, setLevelToRename] = useState<Level | null>(null);
   const [newLevelProfileName, setNewLevelProfileName] = useState("");
+  const [newLevelColor, setNewLevelColor] = useState("#4f46e5");
   const hasInitializedLevelsRef = useRef(false);
   const hasCheckedSampleSeedingRef = useRef(false);
 
@@ -1699,13 +1700,14 @@ export default function App() {
     const finalName = newLevelProfileName.trim();
     
     if (levelToRename) {
-      const updated = { ...levelToRename, name: finalName };
+      const updated = { ...levelToRename, name: finalName, color: newLevelColor };
       saveLevel(user.uid, updated);
       setLevelToRename(null);
     } else {
       const newLevel: Level = {
         id: Math.random().toString(36).substr(2, 9),
         name: finalName,
+        color: newLevelColor,
         subjects: [],
         gradingScale: DEFAULT_GRADING_SCALE,
       };
@@ -1714,11 +1716,13 @@ export default function App() {
     }
     setShowCreateLevelModal(false);
     setNewLevelProfileName("");
+    setNewLevelColor("#4f46e5");
   };
 
   const handleRenameLevel = () => {
     if (!user || !currentLevel) return;
     setNewLevelProfileName(currentLevel.name);
+    setNewLevelColor(currentLevel.color || "#4f46e5");
     setLevelToRename(currentLevel);
     setShowCreateLevelModal(true);
   };
@@ -2883,8 +2887,17 @@ export default function App() {
               />
             </div>
           </div>
-          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-indigo-50/50 p-2 rounded-lg border border-indigo-100">
-            <label className="block text-[10px] font-extrabold text-indigo-500 uppercase tracking-wider mb-1">
+          <div 
+            className="flex-1 min-w-[140px] sm:min-w-[200px] p-2 rounded-lg border transition-all duration-300"
+            style={{ 
+              backgroundColor: currentLevel?.color ? `${currentLevel.color}15` : '#f5f3ff', // 15 is hex for ~8% opacity
+              borderColor: currentLevel?.color ? `${currentLevel.color}40` : '#e0e7ff'
+            }}
+          >
+            <label 
+              className="block text-[10px] font-extrabold uppercase tracking-wider mb-1"
+              style={{ color: currentLevel?.color || '#6366f1' }}
+            >
               Level Profile
             </label>
             <div className="flex items-center gap-1">
@@ -2893,7 +2906,8 @@ export default function App() {
                 onChange={(e) =>
                   handleUpdateCurrentRecord("levelId", e.target.value)
                 }
-                className="w-full text-base font-bold text-indigo-900 border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none bg-transparent px-1 py-0.5 transition-colors cursor-pointer"
+                className="w-full text-base font-bold border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none bg-transparent px-1 py-0.5 transition-colors cursor-pointer"
+                style={{ color: currentLevel?.color || '#312e81' }}
               >
                 {(() => {
                   const availableLevels = levels.filter(lvl => 
@@ -3208,22 +3222,54 @@ export default function App() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-6">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
-                  Profile Name
-                </label>
-                <input
-                  type="text"
-                  autoFocus
-                  value={newLevelProfileName}
-                  onChange={(e) => setNewLevelProfileName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleConfirmCreateLevel()}
-                  placeholder="e.g. Foundation Level A"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-inner"
-                />
-                <p className="text-[10px] text-slate-500 mt-3 font-medium leading-relaxed">
+              <div className="p-6 space-y-5">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                    Profile Name
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newLevelProfileName}
+                    onChange={(e) => setNewLevelProfileName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleConfirmCreateLevel()}
+                    placeholder="e.g. Foundation Level A"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-inner"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">
+                    Profile Color
+                  </label>
+                  <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <input 
+                      type="color"
+                      value={newLevelColor}
+                      onChange={(e) => setNewLevelColor(e.target.value)}
+                      className="w-12 h-12 p-0 border-0 bg-transparent cursor-pointer rounded-lg overflow-hidden shrink-0 shadow-sm"
+                    />
+                    <div className="flex-1">
+                      <div className="text-xs font-black text-slate-600 mb-1 uppercase tracking-wider">Accent Color</div>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight">This color will be used to identify this level in the profile selector and headers.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'].map(c => (
+                      <button 
+                        key={c}
+                        onClick={() => setNewLevelColor(c)}
+                        className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 active:scale-95 ${newLevelColor === c ? 'border-slate-400 scale-110' : 'border-transparent'}`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-500 mt-1 font-medium leading-relaxed">
                   {levelToRename 
-                    ? "Updating the name will help you identify this grading structure when creating new classes." 
+                    ? "Updating the name or color will help you identify this grading structure when creating new classes." 
                     : "Create a new profile to define subjects, assignments, and test weights from scratch."}
                 </p>
               </div>

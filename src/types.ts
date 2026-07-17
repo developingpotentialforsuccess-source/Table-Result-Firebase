@@ -38,6 +38,7 @@ export interface Level {
   id: string;
   name: string;
   program?: string;
+  color?: string;
   term?: string;
   year?: string;
   isArchived?: boolean;
