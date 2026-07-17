@@ -130,7 +130,7 @@ const DEFAULT_SETTINGS: TeacherSettings = {
     { id: '2', min: 50, max: 94.99, color: '#2563eb' }, // blue
     { id: '3', min: 0, max: 49.99, color: '#dc2626' }, // red
   ],
-  attendanceDaysOfWeek: 'Mon-Fri',
+  attendanceDaysOfWeek: 'Mon-Sat',
   gradingScale: [
     { grade: 'A+', minScore: 90 },
     { grade: 'A', minScore: 85 },
@@ -1208,10 +1208,11 @@ export default function App() {
     }
   };
 
+  const isAdmin = ["dps", "dpss", "virtue", "virtues", "wisdom", "wisdoms"].includes(accessCode.trim().toLowerCase());
   const filteredRecords = useMemo(() => {
     const query = searchQuery.toLowerCase();
     const code = accessCode.trim().toLowerCase();
-    const isAdmin = code === "dps" || code === "dpss";
+    const isAdminCode = ["dps", "dpss", "virtue", "virtues", "wisdom", "wisdoms"].includes(code);
 
     const filtered = classRecords
       .filter((cr) => !cr.isDeleted)
@@ -2534,7 +2535,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Level Config */}
+              {isAdmin && (
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold transition-all border rounded-lg shadow-sm cursor-pointer ${showSettings ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"}`}
@@ -2542,6 +2543,7 @@ export default function App() {
                 <Settings className="w-3.5 h-3.5" />
                 Level Config
               </button>
+              )}
 
               {/* Export Button */}
               <div className="relative">
@@ -2948,28 +2950,32 @@ export default function App() {
                   );
                 })()}
               </select>
-              <button
-                onClick={handleRenameLevel}
-                className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors"
-                title="Rename Current Level"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleCreateLevel}
-                className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors"
-                title="Create New Level"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              {levels.length > 1 && (
-                <button
-                  onClick={handleDeleteLevel}
-                  className="p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors"
-                  title="Delete Current Level"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              {isAdmin && (
+                <>
+                  <button
+                    onClick={handleRenameLevel}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                    title="Rename Current Level"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleCreateLevel}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                    title="Create New Level"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                  {levels.length > 1 && (
+                    <button
+                      onClick={handleDeleteLevel}
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors"
+                      title="Delete Current Level"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -4130,6 +4136,7 @@ export default function App() {
               <AttendanceTracker 
                 students={students}
                 settings={currentRecord.settings || DEFAULT_SETTINGS}
+                program={currentLevel?.program}
                 searchQuery={searchQuery}
                 onUpdateSettings={handleUpdateSettings}
                 onUpdateStudentField={handleUpdateStudentField}

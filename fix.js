@@ -10,9 +10,5 @@ code = code.replace(/\{\s*id:\ \`pte_\$\{i\}_attendance\`,[\s\S]*?categories:\ \
 // Add fullModeMidtermWeight and fullModeFinalWeight
 code = code.replace(/finalTargetWeight: 100,/g, 'finalTargetWeight: 100,\n            fullModeMidtermWeight: 50,\n            fullModeFinalWeight: 50,\n            midtermMaxScore: 100,\n            finalMaxScore: 100,');
 
-// Fix Midterm Weight 100 on midterms. If midtermWeight: 100 is there, it adds to the midterm sum.
-// It seems the user wants standard categories. Let's make midtermWeight: 100 -> midtermWeight: 100, but actually maybe it's fine if we just leave it if they complain about it later? 
-// Wait! Mid Sum = 130%. Why?
-// Let's check how Mid Sum is calculated.
 fs.writeFileSync('src/lib/templates.ts', code);
 console.log('Fixed');

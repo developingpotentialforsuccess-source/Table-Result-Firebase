@@ -1957,7 +1957,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                         </div>
 
                         {/* Colorful Program Cards Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {SYSTEM_TEMPLATES.filter(p => p.levels.length > 0).map((program) => {
                             // Fetch cute custom styles for each program
                             let cardBg = "from-slate-50 via-slate-100/50 to-white";
@@ -2120,7 +2120,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               {savedTemplates.map(template => {
                                 const isAdmin = ["DPSS", "DPS", "BPS", "BPSS"].includes(unlockCode.trim().toUpperCase());
                                 const isOwner = user && user.uid === (template as any).authorId;
@@ -2235,7 +2235,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                           )
                         ) : (
                           /* System Program Folder View */
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {(SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels || []).map((originalLvl) => {
                               // Check if there's a system override in savedTemplates
                               const overrideTemplate = savedTemplates.find(t => t.id === `sys_${originalLvl.id}`);

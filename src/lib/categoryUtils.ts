@@ -26,7 +26,7 @@ export const getStudentScoreValue = (
 export const isMidtermCategory = (cat: Category | string) => {
   if (typeof cat === 'string') {
     const n = cat.toUpperCase();
-    return n.includes("MID-TERM") || n.includes("MID TERM") || n.includes("MIDTERM") || n.includes("MID EXAM") || n.includes("MID TEST") || n.includes("GRAMMAR TEST");
+    return n.includes("MID-TERM") || n.includes("MID TERM") || n.includes("MIDTERM") || n.includes("MID EXAM") || n.includes("MID TEST");
   }
   
   if (cat.isMidterm === true) return true;
@@ -38,13 +38,13 @@ export const isMidtermCategory = (cat: Category | string) => {
   }
 
   const n = cat.name.toUpperCase();
-  return n.includes("MID-TERM") || n.includes("MID TERM") || n.includes("MIDTERM") || n.includes("MID EXAM") || n.includes("MID TEST") || n.includes("GRAMMAR TEST");
+  return n.includes("MID-TERM") || n.includes("MID TERM") || n.includes("MIDTERM") || n.includes("MID EXAM") || n.includes("MID TEST");
 };
 
 export const isFinalCategory = (cat: Category | string) => {
   if (typeof cat === 'string') {
     const n = cat.toUpperCase();
-    return n.includes("FINAL") || n.includes("SPEAKING");
+    return n.includes("FINAL");
   }
   
   if (cat.isFinal === true) return true;
@@ -56,7 +56,7 @@ export const isFinalCategory = (cat: Category | string) => {
   }
 
   const n = cat.name.toUpperCase();
-  return n.includes("FINAL") || n.includes("SPEAKING");
+  return n.includes("FINAL");
 };
 
 export const isSubjectActiveInMode = (subject: any, mode: 'full' | 'midterm' | 'final') => {
