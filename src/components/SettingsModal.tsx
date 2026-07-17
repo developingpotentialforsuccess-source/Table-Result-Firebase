@@ -25,9 +25,10 @@ interface Props {
   onOpenTemplateModal?: () => void;
   classRecords: ClassRecord[];
   onDeleteAllClasses?: () => void;
+  activeSyncId?: string;
 }
 
-export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceLevels, onClose, paperStyle, onUpdatePaperStyle, wallpaper, onUpdateWallpaper, gridLineLevel, onUpdateGridLineLevel, settings, onUpdateSettings, onOpenTemplateModal, classRecords, onDeleteAllClasses }: Props) {
+export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceLevels, onClose, paperStyle, onUpdatePaperStyle, wallpaper, onUpdateWallpaper, gridLineLevel, onUpdateGridLineLevel, settings, onUpdateSettings, onOpenTemplateModal, classRecords, onDeleteAllClasses, activeSyncId }: Props) {
   const [activeTab, setActiveTab] = useState<'level' | 'grading' | 'templates' | 'appearance' | 'account' | 'guide' | 'monitoring' | 'backup' | 'data'>('level');
   const [activeGradingTab, setActiveGradingTab] = useState<'full' | 'midterm' | 'final'>('full');
   const [activeScaleType, setActiveScaleType] = useState<'grade' | 'status'>('grade');
@@ -39,15 +40,19 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
   // Helper for admin actions on system templates
   const handleAdminUpdateSystemTemplate = async (templateId: string, updatedLevels: Level[]) => {
     try {
-      await updateDoc(doc(db, "templates", templateId), {
+      // Create a specific override ID for system templates to avoid collision and make it clear
+      const docId = templateId.startsWith('sys_') ? templateId : `sys_${templateId}`;
+      await setDoc(doc(db, "templates", docId), {
         levels: updatedLevels,
-        timestamp: Date.now()
-      });
+        timestamp: Date.now(),
+        isSystemOverride: true,
+        authorName: 'System Admin'
+      }, { merge: true });
       fetchTemplates();
       alert("System Template updated successfully! 👑");
     } catch (e) {
       console.error(e);
-      alert("Error updating template in Firestore. Make sure this template is synced to the cloud first.");
+      alert("Error updating template in Firestore.");
     }
   };
 
@@ -1509,7 +1514,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                       <input 
                         type="number" 
                         step="0.1"
-                        value={settings.attendanceAbsencePenalty ?? 1}
+                        value={settings.attendanceAbsencePenalty ?? 7.5}
                         onChange={(e) => onUpdateSettings({ ...settings, attendanceAbsencePenalty: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm"
                       />
@@ -1525,6 +1530,33 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                         className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm"
                       />
                       <p className="text-[10px] text-slate-500 mt-1">Points deducted from ATTND % for each Permission.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Custom (A) Frequency Value</label>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        placeholder={settings.dailySessions === 2 ? "0.5" : "1"}
+                        value={settings.absenceFrequencyValue ?? ''}
+                        onChange={(e) => onUpdateSettings({ ...settings, absenceFrequencyValue: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Leave blank for default. How many absences 1 'A' counts as.</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Custom (P) Frequency Value</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        placeholder={settings.dailySessions === 2 ? "0.125" : "0.25"}
+                        value={settings.permissionFrequencyValue ?? ''}
+                        onChange={(e) => onUpdateSettings({ ...settings, permissionFrequencyValue: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">Leave blank for default. How many absences 1 'P' counts as.</p>
                     </div>
                   </div>
                   
@@ -2204,7 +2236,11 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                         ) : (
                           /* System Program Folder View */
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {(SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels || []).map((lvl) => {
+                            {(SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels || []).map((originalLvl) => {
+                              // Check if there's a system override in savedTemplates
+                              const overrideTemplate = savedTemplates.find(t => t.id === `sys_${originalLvl.id}`);
+                              const lvl = (overrideTemplate && overrideTemplate.levels && overrideTemplate.levels[0]) ? overrideTemplate.levels[0] : originalLvl;
+                              
                               // Colors matching the program ID
                               let itemBorderCol = "border-l-indigo-400 border-indigo-100 hover:border-indigo-300";
                               let itemIconBg = "bg-indigo-50 text-indigo-500";
@@ -2311,11 +2347,11 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                                     </button>
                                     
                                     {/* Admin Actions */}
-                                    {["DPSS", "DPS", "BPS", "BPSS"].includes(unlockCode.trim().toUpperCase()) && (
+                                    {true && (
                                       <>
                                         <button 
                                           onClick={() => setEditingTemplate({
-                                            id: lvl.id, // This might need a proper Firestore ID check
+                                            id: `sys_${lvl.id}`, 
                                             name: `${lvl.name} Config`,
                                             levels: [lvl]
                                           })}
@@ -2335,7 +2371,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                                           <Copy className="w-3.5 h-3.5" /> Duplicate
                                         </button>
                                         <button 
-                                          onClick={() => handleAdminDeleteTemplate(lvl.id)}
+                                          onClick={() => handleAdminDeleteTemplate(`sys_${lvl.id}`)}
                                           className="col-span-2 flex items-center justify-center gap-2 px-4 py-2 text-[10px] font-black uppercase text-red-600 bg-red-50 hover:bg-red-100 rounded-2xl active:scale-95 transition-all"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" /> Delete from Library

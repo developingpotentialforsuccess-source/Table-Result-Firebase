@@ -113,6 +113,8 @@ export interface TeacherSettings {
   showAttendance?: boolean;
   attendanceAbsencePenalty?: number;
   attendancePermissionPenalty?: number;
+  absenceFrequencyValue?: number;
+  permissionFrequencyValue?: number;
   attendanceStartDate?: string;
   attendanceEndDate?: string;
   attendanceDaysOfWeek?: 'Mon-Fri' | 'Mon-Sat' | 'Mon-Sun';

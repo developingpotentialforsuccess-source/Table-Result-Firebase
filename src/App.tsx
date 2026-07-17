@@ -625,7 +625,7 @@ export default function App() {
     setIsLevelsLoading(true);
     setInitError(null);
 
-    const activeSyncId = globalSyncId || user.uid;
+    const activeSyncId = globalSyncId || (user ? user.uid : undefined);
     const unsubLevels = subscribeToLevels(activeSyncId, (fetchedLevels) => {
       setIsLevelsLoading(false);
       if (fetchedLevels.length === 0 && !hasInitializedLevelsRef.current) {
@@ -867,7 +867,7 @@ export default function App() {
     ) {
       const newLevels = sortLevels([...levels, SAMPLE_5_SUBJECTS]);
       setLevels(newLevels);
-      saveLevel(user.uid, SAMPLE_5_SUBJECTS);
+      saveLevel(activeSyncId, SAMPLE_5_SUBJECTS);
       localStorage.setItem("gradecalc_sample_template_added", "true");
     }
 
@@ -900,8 +900,8 @@ export default function App() {
         studentCount: 1,
       };
       setClassRecords((prev) => [...prev, newClassRecord]);
-      saveClassRecord(user.uid, newClassRecord);
-      saveStudent(user.uid, newClassRecord.id, sampleStudent);
+      saveClassRecord(activeSyncId, newClassRecord);
+      saveStudent(activeSyncId, newClassRecord.id, sampleStudent);
       localStorage.setItem("gradecalc_sample_class_added", "true");
     }
   }, [user, levels, classRecords]);
@@ -1039,7 +1039,7 @@ export default function App() {
       const backupData: any = {
         version: "1.0",
         timestamp: new Date().toISOString(),
-        userId: user.uid,
+        userId: activeSyncId,
         userEmail: user.email || "local",
         levels: [],
         classRecords: [],
@@ -1073,7 +1073,7 @@ export default function App() {
       // 3. Fetch Students for each class
       const fetchPromises = filteredRecords.map(async (record) => {
         if (!isFirebaseConfigured()) {
-          backupData.students[record.id] = getLocalStudents(user.uid, record.id);
+          backupData.students[record.id] = getLocalStudents(activeSyncId, record.id);
         } else {
           try {
             const q = query(collection(db, "classes", record.id, "students"));
@@ -1142,15 +1142,15 @@ export default function App() {
 
         // 1. Restore Levels
         for (const level of data.levels) {
-          await saveLevel(user.uid, level);
+          await saveLevel(activeSyncId, level);
         }
 
         // 2. Restore Classes and Students
         for (const record of data.classRecords) {
-          await saveClassRecord(user.uid, record);
+          await saveClassRecord(activeSyncId, record);
           const classStudents = data.students[record.id] || [];
           if (classStudents.length > 0) {
-            await saveStudentsBatch(user.uid, record.id, classStudents);
+            await saveStudentsBatch(activeSyncId, record.id, classStudents);
           }
         }
 
@@ -1376,7 +1376,7 @@ export default function App() {
 
   const handleUpdateLevel = (updatedLevel: Level) => {
     if (!user) return;
-    saveLevel(user.uid, updatedLevel);
+    saveLevel(activeSyncId, updatedLevel);
   };
 
   const handleReplaceLevels = (newLevels: Level[]) => {
@@ -1385,11 +1385,11 @@ export default function App() {
     // Find levels that were in current list but are NOT in the new list, and delete them
     const deletedLevels = levels.filter((oldL) => !newLevels.some((newL) => newL.id === oldL.id));
     deletedLevels.forEach((l) => {
-      deleteLevel(user.uid, l.id);
+      deleteLevel(activeSyncId, l.id);
     });
 
     // Save/update the remaining ones
-    newLevels.forEach((l) => saveLevel(user.uid, l));
+    newLevels.forEach((l) => saveLevel(activeSyncId, l));
 
     // If the currently selected level was deleted, switch to the first remaining one
     if (currentRecord && deletedLevels.some((dl) => dl.id === currentRecord.levelId)) {
@@ -1407,40 +1407,40 @@ export default function App() {
 
   // Migration logic for users who were using the "default_teacher" mock
   useEffect(() => {
-    if (!user || user.uid === 'default_teacher') return;
+    if (!user || activeSyncId === 'default_teacher') return;
 
     const performMigration = async () => {
-      const hasMigrated = localStorage.getItem(`gradecalc_migrated_${user.uid}`);
+      const hasMigrated = localStorage.getItem(`gradecalc_migrated_${activeSyncId}`);
       if (hasMigrated) return;
 
       const localLevels = getLocalLevels('default_teacher');
       const localClasses = getLocalClasses('default_teacher');
 
       if (localLevels.length > 0 || localClasses.length > 0) {
-        console.log(`[Migration] Migrating ${localLevels.length} levels and ${localClasses.length} classes for user ${user.uid}`);
+        console.log(`[Migration] Migrating ${localLevels.length} levels and ${localClasses.length} classes for user ${activeSyncId}`);
         
         try {
           if (localLevels.length > 0) {
-            await saveLevelsBatch(user.uid, localLevels);
+            await saveLevelsBatch(activeSyncId, localLevels);
           }
           
           if (localClasses.length > 0) {
             for (const cls of localClasses) {
-              await saveClassRecord(user.uid, cls);
+              await saveClassRecord(activeSyncId, cls);
               const classStudents = getLocalStudents('default_teacher', cls.id);
               if (classStudents.length > 0) {
-                await saveStudentsBatch(user.uid, cls.id, classStudents);
+                await saveStudentsBatch(activeSyncId, cls.id, classStudents);
               }
             }
           }
           
-          localStorage.setItem(`gradecalc_migrated_${user.uid}`, 'true');
+          localStorage.setItem(`gradecalc_migrated_${activeSyncId}`, 'true');
           console.log("[Migration] Migration completed successfully.");
         } catch (err) {
           console.error("[Migration] Error during migration:", err);
         }
       } else {
-        localStorage.setItem(`gradecalc_migrated_${user.uid}`, 'true');
+        localStorage.setItem(`gradecalc_migrated_${activeSyncId}`, 'true');
       }
     };
 
@@ -1500,7 +1500,7 @@ export default function App() {
             ],
             attendanceWeight: 0,
           };
-          saveLevel(user.uid, newEmptyLevel).catch(err => console.error("Failed to save new level in background:", err));
+          saveLevel(activeSyncId, newEmptyLevel).catch(err => console.error("Failed to save new level in background:", err));
           resolvedLevelId = newEmptyLevelId;
         } else {
           // They chose an existing level. Make a clean copy of it so changes don't leak across classes
@@ -1512,7 +1512,7 @@ export default function App() {
               id: newCopiedLevelId,
               name: newClassName.trim() + " Profile"
             };
-            saveLevel(user.uid, copiedLevel).catch(err => console.error("Failed to copy chosen level in background:", err));
+            saveLevel(activeSyncId, copiedLevel).catch(err => console.error("Failed to copy chosen level in background:", err));
             resolvedLevelId = newCopiedLevelId;
           } else {
             resolvedLevelId = newLevelId;
@@ -1534,7 +1534,7 @@ export default function App() {
             name: newClassName.trim() + " Level Profile"
           };
           
-          saveLevel(user.uid, copiedLevel).catch(err => console.error("Failed to save template level in background:", err));
+          saveLevel(activeSyncId, copiedLevel).catch(err => console.error("Failed to save template level in background:", err));
           resolvedLevelId = newCopiedLevelId;
         } else {
           throw new Error("The selected template contains no levels or could not be found.");
@@ -1553,7 +1553,7 @@ export default function App() {
           statusScale: levels[0]?.statusScale || [],
           attendanceWeight: 0, // Make attendance standalone without skewing grades
         };
-        saveLevel(user.uid, copiedLevel).catch(err => console.error("Failed to save pasted level in background:", err));
+        saveLevel(activeSyncId, copiedLevel).catch(err => console.error("Failed to save pasted level in background:", err));
         resolvedLevelId = newPastedLevelId;
       } else if (classCreationSource === "existing") {
         if (!selectedTemplateId) {
@@ -1583,7 +1583,7 @@ export default function App() {
           try {
             let templateStudents: Student[] = [];
             if (!isFirebaseConfigured()) {
-              templateStudents = getLocalStudents(user.uid, selectedTemplateId);
+              templateStudents = getLocalStudents(activeSyncId, selectedTemplateId);
             } else {
               const snapshot = await getDocs(collection(db, 'classes', selectedTemplateId, 'students'));
               templateStudents = snapshot.docs.map(doc => doc.data() as Student);
@@ -1598,7 +1598,7 @@ export default function App() {
             }));
             
             if (newStudents.length > 0) {
-              saveStudentsBatch(user.uid, newClassId, newStudents).catch(err => console.error("Failed to save copied students in background:", err));
+              saveStudentsBatch(activeSyncId, newClassId, newStudents).catch(err => console.error("Failed to save copied students in background:", err));
             }
             newRecord.studentCount = templateStudents.length;
           } catch (err) {
@@ -1607,7 +1607,7 @@ export default function App() {
         }
       }
 
-      saveClassRecord(user.uid, newRecord).catch(err => console.error("Failed to save new class record in background:", err));
+      saveClassRecord(activeSyncId, newRecord).catch(err => console.error("Failed to save new class record in background:", err));
       setCurrentRecordId(newRecord.id);
       setAccessCode(newAccessCode.trim());
       localStorage.setItem("gradecalc_access_code", newAccessCode.trim());
@@ -1678,12 +1678,12 @@ export default function App() {
           comment: templateRosterOption === "copy_all" ? s.comment : "",
           attendanceRecords: templateRosterOption === "copy_all" ? { ...(s.attendanceRecords || {}) } : {},
         };
-        saveStudent(user.uid, newClassId, ns);
+        saveStudent(activeSyncId, newClassId, ns);
       });
       newRecord.studentCount = students.length;
     }
 
-    saveClassRecord(user.uid, newRecord);
+    saveClassRecord(activeSyncId, newRecord);
     setCurrentRecordId(newRecord.id);
     setAccessCode(templateAccessCode.trim());
     localStorage.setItem("gradecalc_access_code", templateAccessCode.trim());
@@ -1703,7 +1703,7 @@ export default function App() {
     
     if (levelToRename) {
       const updated = { ...levelToRename, name: finalName, color: newLevelColor };
-      saveLevel(user.uid, updated);
+      saveLevel(activeSyncId, updated);
       setLevelToRename(null);
     } else {
       const newLevel: Level = {
@@ -1713,7 +1713,7 @@ export default function App() {
         subjects: [],
         gradingScale: DEFAULT_GRADING_SCALE,
       };
-      saveLevel(user.uid, newLevel);
+      saveLevel(activeSyncId, newLevel);
       handleUpdateCurrentRecord("levelId", newLevel.id);
     }
     setShowCreateLevelModal(false);
@@ -1732,7 +1732,7 @@ export default function App() {
   const handleDeleteLevel = () => {
     if (!user || levels.length <= 1) return;
     if (confirm(`Are you sure you want to delete ${currentLevel.name}?`)) {
-      deleteLevel(user.uid, currentLevel.id);
+      deleteLevel(activeSyncId, currentLevel.id);
       const remaining = levels.filter((l) => l.id !== currentLevel.id);
       if (remaining.length > 0) {
         handleUpdateCurrentRecord("levelId", remaining[0].id);
@@ -1747,7 +1747,7 @@ export default function App() {
       isDeleted: true,
       deletedAt: new Date().toISOString(),
     };
-    saveClassRecord(user.uid, updated);
+    saveClassRecord(activeSyncId, updated);
   };
 
   const handleDeleteAllClasses = async () => {
@@ -1756,7 +1756,7 @@ export default function App() {
     try {
       // Delete ALL classes in the record list, regardless of deleted status
       for (const cr of classRecords) {
-        await deleteClassRecordRef(user.uid, cr.id);
+        await deleteClassRecordRef(activeSyncId, cr.id);
       }
       alert("All classes have been deleted successfully.");
       setCurrentRecordId("");
@@ -1775,7 +1775,7 @@ export default function App() {
         isDeleted: false,
         deletedAt: undefined,
       };
-      saveClassRecord(user.uid, updated);
+      saveClassRecord(activeSyncId, updated);
       setCurrentRecordId(classId);
     }
   };
@@ -1785,7 +1785,7 @@ export default function App() {
     const record = classRecords.find((r) => r.id === classId);
     if (record) {
       if (confirm(`CRITICAL WARNING: Are you sure you want to PERMANENTLY delete the class "${record.className}"? This will delete all students and score histories forever. This action cannot be undone.`)) {
-        deleteClassRecordRef(user.uid, classId);
+        deleteClassRecordRef(activeSyncId, classId);
         // Switch current record if we deleted it
         if (currentRecordId === classId) {
           const remaining = classRecords.filter((cr) => cr.id !== classId && !cr.isDeleted);
@@ -1807,7 +1807,7 @@ export default function App() {
       attendance: "",
       comment: "",
     };
-    saveStudent(user.uid, currentRecord.id, newStudent);
+    saveStudent(activeSyncId, currentRecord.id, newStudent);
   };
 
   const isQuizCategory = (catId: string) => {
@@ -1837,7 +1837,7 @@ export default function App() {
         } else {
           newScores[scoreKey] = u.value;
         }
-        saveStudent(user.uid, currentRecord.id, { ...student, scores: newScores });
+        saveStudent(activeSyncId, currentRecord.id, { ...student, scores: newScores });
         if (isQuizCategory(u.categoryId)) {
           hasQuizUpdate = true;
         }
@@ -1883,7 +1883,7 @@ export default function App() {
       } else {
         newScores[scoreKey] = value;
       }
-      saveStudent(user.uid, currentRecord.id, { ...student, scores: newScores });
+      saveStudent(activeSyncId, currentRecord.id, { ...student, scores: newScores });
       if (isQuizCategory(categoryId)) {
         handleUpdateCurrentRecord("lastQuizFilledAt", new Date().toISOString());
       }
@@ -1902,7 +1902,7 @@ export default function App() {
         // @ts-ignore
         updatedStudent[field] = value;
       }
-      saveStudent(user.uid, currentRecord.id, updatedStudent);
+      saveStudent(activeSyncId, currentRecord.id, updatedStudent);
       if (field === 'attendance') {
         handleUpdateCurrentRecord("lastAttendanceFilledAt", new Date().toISOString());
       }
@@ -1919,7 +1919,7 @@ export default function App() {
       } else {
         newRecords[dateKey] = status;
       }
-      saveStudent(user.uid, currentRecord.id, { ...student, attendanceRecords: newRecords });
+      saveStudent(activeSyncId, currentRecord.id, { ...student, attendanceRecords: newRecords });
       handleUpdateCurrentRecord("lastAttendanceFilledAt", new Date().toISOString());
     }
   };
@@ -1934,13 +1934,13 @@ export default function App() {
       return { ...student, attendanceRecords: newRecords };
     });
     
-    saveStudentsBatch(user.uid, currentRecord.id, updatedStudents);
+    saveStudentsBatch(activeSyncId, currentRecord.id, updatedStudents);
     handleUpdateCurrentRecord("lastAttendanceFilledAt", new Date().toISOString());
   };
 
   const handleDeleteStudent = (id: string) => {
     if (!currentRecord || !user) return;
-    deleteStudent(user.uid, currentRecord.id, id);
+    deleteStudent(activeSyncId, currentRecord.id, id);
   };
 
   const getInitials = (name: string) =>
@@ -2992,7 +2992,7 @@ export default function App() {
                 onUpdateSettings={handleUpdateSettings}
                 onOpenTemplateModal={handleOpenTemplateModal}
                 classRecords={classRecords}
-                onDeleteAllClasses={handleDeleteAllClasses}
+                onDeleteAllClasses={handleDeleteAllClasses} activeSyncId={activeSyncId}
               />
             )}
 
