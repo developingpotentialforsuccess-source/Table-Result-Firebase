@@ -142,6 +142,7 @@ export interface TeacherSettings {
   attendanceNoScoreDays?: number;
   showWeightInHeader?: boolean;
   hideSystemTemplates?: boolean;
+  syncId?: string;
 }
 
 export interface ManualColorOption {

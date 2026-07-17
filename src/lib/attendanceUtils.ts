@@ -7,9 +7,9 @@ export function calculateAttendanceMetrics(student: Student, settings: TeacherSe
 
   Object.values(student.attendanceRecords).forEach(status => {
     if (status === 'Absent') {
-      frequency += 1;
+      frequency += settings.dailySessions === 2 ? 0.5 : 1;
     } else if (status === 'Permission') {
-      frequency += 0.25;
+      frequency += settings.dailySessions === 2 ? 0.125 : 0.25;
     }
   });
 

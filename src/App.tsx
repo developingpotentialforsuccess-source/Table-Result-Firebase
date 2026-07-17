@@ -422,6 +422,8 @@ import { StudentManager } from "./components/StudentManager";
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [globalSyncId, setGlobalSyncId] = useState(() => localStorage.getItem("gradecalc_global_sync_id") || "");
+  const activeSyncId = globalSyncId || user?.uid;
 
   const [levels, setLevels] = useState<Level[]>([]);
   const [classRecords, setClassRecords] = useState<ClassRecord[]>([]);
@@ -443,9 +445,9 @@ export default function App() {
 
     // 3. Set a new timer to save to Firestore after 600ms
     pendingSaveRef.current[updatedRecord.id] = setTimeout(async () => {
-      if (user) {
+      if (activeSyncId) {
         try {
-          await saveClassRecord(user.uid, updatedRecord);
+          await saveClassRecord(activeSyncId, updatedRecord);
         } catch (err) {
           console.error("Failed to save class record:", err);
         }
@@ -623,20 +625,21 @@ export default function App() {
     setIsLevelsLoading(true);
     setInitError(null);
 
-    const unsubLevels = subscribeToLevels(user.uid, (fetchedLevels) => {
+    const activeSyncId = globalSyncId || user.uid;
+    const unsubLevels = subscribeToLevels(activeSyncId, (fetchedLevels) => {
       setIsLevelsLoading(false);
       if (fetchedLevels.length === 0 && !hasInitializedLevelsRef.current) {
         hasInitializedLevelsRef.current = true;
         // Initialize default levels for new users
         setLevels(sortLevels(DEFAULT_LEVELS));
-        saveLevelsBatch(user.uid, DEFAULT_LEVELS).catch(err => {
+        saveLevelsBatch(activeSyncId, DEFAULT_LEVELS).catch(err => {
           console.error("Failed to seed default levels:", err);
         });
       } else {
         setLevels(sortLevels(fetchedLevels));
       }
     });
-    const unsubClasses = subscribeToClasses(user.uid, (fetchedClasses) => {
+    const unsubClasses = subscribeToClasses(activeSyncId, (fetchedClasses) => {
       setClassRecords(fetchedClasses);
       const activeClasses = fetchedClasses.filter(c => !c.isDeleted);
       if (activeClasses.length > 0) {
@@ -657,7 +660,7 @@ export default function App() {
           settings: DEFAULT_SETTINGS,
           createdAt: new Date().toISOString(),
         };
-        saveClassRecord(user.uid, defaultClass);
+        saveClassRecord(activeSyncId, defaultClass);
         setCurrentRecordId(defaultClassId);
       }
     });
@@ -666,7 +669,7 @@ export default function App() {
       unsubLevels();
       unsubClasses();
     };
-  }, [user]);
+  }, [user, globalSyncId]);
 
   // Seed sample classes for all major programs if they do not have one
   useEffect(() => {
@@ -748,7 +751,7 @@ export default function App() {
           let targetLevelId = prog.levelId;
           const hasLevel = levels.some(l => l.id === prog.levelId);
           if (!hasLevel && prog.defaultLevel) {
-            await saveLevel(user.uid, prog.defaultLevel);
+            await saveLevel(activeSyncId, prog.defaultLevel);
           }
 
           // 2. Create the Class Record
@@ -765,7 +768,7 @@ export default function App() {
             createdAt: new Date().toISOString(),
           };
 
-          await saveClassRecord(user.uid, sampleClass);
+          await saveClassRecord(activeSyncId, sampleClass);
 
           // 3. Create 3 sample students with populated grades so the user has actual data to look at!
           const sexChoices: ("Male" | "Female")[] = ["Male", "Female", "Male"];
@@ -804,7 +807,7 @@ export default function App() {
             }
           ];
 
-          await saveStudentsBatch(user.uid, classId, sampleStudents);
+          await saveStudentsBatch(activeSyncId, classId, sampleStudents);
           didSeed = true;
         }
       }
@@ -819,9 +822,8 @@ export default function App() {
     });
   }, [isLevelsLoading, user, levels, classRecords]);
 
-  // Subscribe to students of the current class
   useEffect(() => {
-    if (!user || !currentRecordId) {
+    if (!activeSyncId || !currentRecordId) {
       setStudents([]);
       return;
     }
@@ -833,28 +835,28 @@ export default function App() {
     if (activeClass && (activeClass as any).students && (activeClass as any).students.length > 0) {
       const embeddedStudents = (activeClass as any).students as Student[];
       // Migrate embedded students to sub-collection
-      Promise.all(embeddedStudents.map(s => saveStudent(user.uid, currentRecordId, s))).then(() => {
+      Promise.all(embeddedStudents.map(s => saveStudent(activeSyncId, currentRecordId, s))).then(() => {
         // After migration, update the class record to remove the embedded array
         const updated = { ...activeClass };
         delete (updated as any).students;
         updated.studentCount = embeddedStudents.length;
-        saveClassRecord(user.uid, updated);
+        saveClassRecord(activeSyncId, updated);
       });
     }
 
-    const unsubscribe = subscribeToStudents(user.uid, currentRecordId, (fetchedStudents) => {
+    const unsubscribe = subscribeToStudents(activeSyncId, currentRecordId, (fetchedStudents) => {
       setStudents(fetchedStudents);
       setStudentsLoading(false);
       
       // Update student count in the class metadata if it differs
       const activeClass = classRecords.find(c => c.id === currentRecordId);
       if (activeClass && activeClass.studentCount !== fetchedStudents.length) {
-        saveClassRecord(user.uid, { ...activeClass, studentCount: fetchedStudents.length });
+        saveClassRecord(activeSyncId, { ...activeClass, studentCount: fetchedStudents.length });
       }
     });
 
     return () => unsubscribe();
-  }, [user, currentRecordId, classRecords.length]);
+  }, [activeSyncId, currentRecordId, classRecords.length]);
 
   useEffect(() => {
     if (!user || levels.length === 0) return;
