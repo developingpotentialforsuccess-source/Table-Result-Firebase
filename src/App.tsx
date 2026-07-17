@@ -1272,7 +1272,7 @@ export default function App() {
             ],
             attendanceWeight: 0,
           };
-          await saveLevel(user.uid, newEmptyLevel);
+          saveLevel(user.uid, newEmptyLevel).catch(err => console.error("Failed to save new level in background:", err));
           resolvedLevelId = newEmptyLevelId;
         } else {
           // They chose an existing level. Make a clean copy of it so changes don't leak across classes
@@ -1284,7 +1284,7 @@ export default function App() {
               id: newCopiedLevelId,
               name: newClassName.trim() + " Profile"
             };
-            await saveLevel(user.uid, copiedLevel);
+            saveLevel(user.uid, copiedLevel).catch(err => console.error("Failed to copy chosen level in background:", err));
             resolvedLevelId = newCopiedLevelId;
           } else {
             resolvedLevelId = newLevelId;
@@ -1306,7 +1306,7 @@ export default function App() {
             name: newClassName.trim() + " Level Profile"
           };
           
-          await saveLevel(user.uid, copiedLevel);
+          saveLevel(user.uid, copiedLevel).catch(err => console.error("Failed to save template level in background:", err));
           resolvedLevelId = newCopiedLevelId;
         } else {
           throw new Error("The selected template contains no levels or could not be found.");
@@ -1325,7 +1325,7 @@ export default function App() {
           statusScale: levels[0]?.statusScale || [],
           attendanceWeight: 0, // Make attendance standalone without skewing grades
         };
-        await saveLevel(user.uid, copiedLevel);
+        saveLevel(user.uid, copiedLevel).catch(err => console.error("Failed to save pasted level in background:", err));
         resolvedLevelId = newPastedLevelId;
       } else if (classCreationSource === "existing") {
         if (!selectedTemplateId) {
@@ -1370,7 +1370,7 @@ export default function App() {
             }));
             
             if (newStudents.length > 0) {
-              await saveStudentsBatch(user.uid, newClassId, newStudents);
+              saveStudentsBatch(user.uid, newClassId, newStudents).catch(err => console.error("Failed to save copied students in background:", err));
             }
             newRecord.studentCount = templateStudents.length;
           } catch (err) {
@@ -1379,7 +1379,7 @@ export default function App() {
         }
       }
 
-      await saveClassRecord(user.uid, newRecord);
+      saveClassRecord(user.uid, newRecord).catch(err => console.error("Failed to save new class record in background:", err));
       setCurrentRecordId(newRecord.id);
       setAccessCode(newAccessCode.trim());
       localStorage.setItem("gradecalc_access_code", newAccessCode.trim());

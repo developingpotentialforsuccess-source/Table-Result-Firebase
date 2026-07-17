@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
+import { initializeFirestore, doc, getDocFromCache, getDocFromServer, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -14,6 +14,9 @@ const app = initializeApp(firebaseConfig);
 
 export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
 });
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
