@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { initializeFirestore, doc, getDocFromCache, getDocFromServer, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, doc, getDocFromCache, getDocFromServer, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -12,12 +12,27 @@ export const isFirebaseConfigured = () => {
 
 const app = initializeApp(firebaseConfig);
 
-export const db = initializeFirestore(app, {
-  ignoreUndefinedProperties: true,
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-});
+let firestoreDb;
+try {
+  firestoreDb = initializeFirestore(app, {
+    ignoreUndefinedProperties: true,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
+} catch (cacheError) {
+  console.warn("Failed to initialize Firestore with persistent local cache, falling back to default:", cacheError);
+  try {
+    firestoreDb = initializeFirestore(app, {
+      ignoreUndefinedProperties: true,
+    });
+  } catch (fallbackError) {
+    console.error("Failed to initialize Firestore even with default options, using getFirestore:", fallbackError);
+    firestoreDb = getFirestore(app);
+  }
+}
+
+export const db = firestoreDb;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

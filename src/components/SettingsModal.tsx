@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Save, Copy, FileText, Database, Trash2, Edit2, Plus, Bell, RefreshCw, Upload, Download } from 'lucide-react';
+import { X, User, Save, Copy, FileText, Database, Trash2, Edit2, Plus, Bell, RefreshCw, Upload, Download, FolderOpen, Sparkles, Heart, Award, Languages, BookOpen, Calculator, FolderHeart, GraduationCap, Lock, Shield, Star } from 'lucide-react';
 import { Level, Subject, PAPER_STYLES, WALLPAPERS, TeacherSettings, MANUAL_COLORS, ClassRecord } from '../types';
 import LevelSettings from './LevelSettings';
 import { SYSTEM_TEMPLATES } from '../lib/templates';
@@ -150,6 +150,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
         levels: levels
       });
       fetchTemplates();
+      alert(`Template "${templateName}" saved successfully!\n\nWhere to find it:\nIt is saved under 'My Saved Library' folder on this screen. Scroll down or go back to programs and click 'My Saved Library' to view and apply it.`);
     } catch (e) {
       console.error("Error saving template:", e);
       alert("Failed to save template. Make sure you are signed in.");
@@ -214,30 +215,33 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
     const newName = prompt("Enter new name for this template:", currentName);
     if (!newName || newName === currentName) return;
     
-    // Check if it's a system template
-    const isSystem = SYSTEM_TEMPLATES.some(t => t.id === templateId);
+    // Check if it's a system template or a level within a system template
+    const systemTemplate = SYSTEM_TEMPLATES.find(t => t.id === templateId || t.levels.some(l => l.id === templateId));
+    const isSystem = !!systemTemplate;
     
     try {
-      if (isSystem) {
-        // For system templates, create a cloned version in their library with the new name
-        const systemTemplate = SYSTEM_TEMPLATES.find(t => t.id === templateId);
-        if (!systemTemplate) return;
+      if (isSystem && systemTemplate) {
+        // For system templates or levels, create a cloned version in their library with the new name
+        let systemLevels: any[] = systemTemplate.levels;
+        const levelMatch = systemTemplate.levels.find(l => l.id === templateId);
+        if (levelMatch) {
+          systemLevels = [levelMatch];
+        }
         
-        await setDoc(doc(db, `templates`, `${templateId}_renamed_${Date.now()}`), {
+        await setDoc(doc(db, `templates`, `cloned_${templateId}_${Date.now()}`), {
           name: newName,
           authorId: user?.uid || 'guest',
           authorName: user?.displayName || user?.email || 'Teacher',
-          levels: systemTemplate.levels,
-          originalSystemId: templateId // To help hide the original if we want
+          levels: systemLevels,
+          originalSystemId: templateId
         });
-        alert("System template renamed and saved to your library.");
+        alert(`System template "${currentName}" renamed and cloned to your saved library!`);
       } else {
         // Regular template rename (check author if not unlocked by DPSS)
-        // Actually the user said "I don't have to copy. I can rename it directly"
-        // If they have DPSS, they can rename ANY template.
         await updateDoc(doc(db, `templates`, templateId), {
           name: newName
         });
+        alert(`Template renamed to "${newName}" successfully!`);
       }
       fetchTemplates();
     } catch (e) {
@@ -280,10 +284,9 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
     
     if (confirm("Are you sure you want to delete this template? This cannot be undone.")) {
       try {
-        const isSystem = SYSTEM_TEMPLATES.some(t => t.id === templateId);
+        const isSystem = SYSTEM_TEMPLATES.some(t => t.id === templateId || t.levels.some(l => l.id === templateId));
         if (isSystem) {
-          alert("System templates cannot be permanently deleted from the source, but you can hide them or they will be removed from your view if we implemented hiding logic.");
-          // For now, we just block system deletion but allow it for their own
+          alert("Default program templates are read-only and cannot be permanently deleted.");
           return;
         }
         await deleteDoc(doc(db, `templates`, templateId));
@@ -340,6 +343,12 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
               Current Level
             </button>
             <button
+              className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'templates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setActiveTab('templates')}
+            >
+              🌸 Templates & Sync
+            </button>
+            <button
               className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'guide' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
               onClick={() => setActiveTab('guide')}
             >
@@ -350,12 +359,6 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
               onClick={() => setActiveTab('grading')}
             >
               Grading Style
-            </button>
-            <button
-              className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'templates' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-              onClick={() => setActiveTab('templates')}
-            >
-              Templates & Sync
             </button>
             <button
               className={`px-4 sm:px-6 py-4 text-sm font-medium border-b-2 transition-colors ${activeTab === 'appearance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
@@ -1642,31 +1645,35 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
           {activeTab === 'templates' && (
             <div className="p-6">
               {!isFirebaseConfigured() && (
-                <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 space-y-1">
-                  <span className="block text-sm font-bold uppercase tracking-wide">Offline Local Mode Active</span>
-                  <p className="text-xs text-amber-700">
-                    The shared community templates library is currently disabled because Firebase cloud setup is not completed or was declined.
-                    However, you can still duplicate, design, and manage class profiles fully offline! All your work remains safe on this local device.
+                <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 text-amber-800 space-y-1 shadow-xs">
+                  <span className="flex items-center gap-2 text-sm font-black uppercase tracking-wide">
+                    <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" /> Offline Local Mode Active
+                  </span>
+                  <p className="text-xs text-amber-700 font-medium">
+                    The shared community templates library is currently in local offline mode because Firebase is not connected. 
+                    No worries! You can still design, duplicate, and apply all built-in school program structures completely offline.
                   </p>
                 </div>
               )}
               {editingTemplate ? (
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm max-w-4xl mx-auto">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm max-w-4xl mx-auto">
                   <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
                     <div>
-                      <h2 className="text-xl font-semibold text-slate-800">Editing Template: {editingTemplate.name}</h2>
+                      <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <Edit2 className="w-5 h-5 text-indigo-500" /> Editing Template: {editingTemplate.name}
+                      </h2>
                       <p className="text-sm text-slate-500">Changes will be saved to your template library.</p>
                     </div>
                     <div className="flex items-center gap-3">
                       <button 
                         onClick={() => setEditingTemplate(null)}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                        className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl active:scale-95 transition-all"
                       >
                         Cancel
                       </button>
                       <button 
                         onClick={handleSaveEditedTemplate}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                        className="px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition-all flex items-center gap-2 shadow-md active:scale-95"
                       >
                         <Save className="w-4 h-4" />
                         Save Changes
@@ -1687,256 +1694,463 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h2 className="text-xl font-semibold text-slate-800">Templates Library</h2>
-                      <p className="text-sm text-slate-500">Save your full level structures to the community library, or load existing ones.</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {user && (
-                        <button 
-                          onClick={async () => {
-                            const templateName = prompt("Enter a name for this new template (based on current class):", `${level.name} Template`);
-                            if (!templateName) return;
-                            
-                            try {
-                              const templateId = Math.random().toString(36).substring(2, 9);
-                              await setDoc(doc(db, `templates`, templateId), {
-                                name: templateName,
-                                authorId: user.uid,
-                                authorName: user.displayName || user.email || 'Teacher',
-                                levels: [level]
-                              });
-                              fetchTemplates();
-                              alert("Current class saved as a template successfully!");
-                            } catch (e) {
-                              console.error("Error saving current class as template:", e);
-                              alert("Failed to save template.");
-                            }
-                          }} 
-                          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium shadow-sm"
-                        >
-                          <Save className="w-4 h-4" />
-                          Save Current Class as Template
-                        </button>
-                      )}
-                      {onOpenTemplateModal && (
-                        <button onClick={() => { onOpenTemplateModal(); onClose(); }} className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors text-sm font-medium shadow-sm">
-                          <Copy className="w-4 h-4" />
-                          Use Class as Template
-                        </button>
-                      )}
-                      {user ? (
-                        <button onClick={handleSaveTemplate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm">
-                          <Save className="w-4 h-4" />
-                          Save All My Levels as Template
-                        </button>
-                      ) : (
-                        <button onClick={() => setActiveTab('account')} className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium border border-slate-200 shadow-sm">
-                          <User className="w-4 h-4" />
-                          Sign In to Save Templates
-                        </button>
-                      )}
+                  {/* Cute & Sparkly Banner Header */}
+                  <div className="bg-gradient-to-r from-pink-100 via-purple-100 to-indigo-100 rounded-3xl p-6 sm:p-8 text-slate-800 shadow-md mb-8 relative overflow-hidden">
+                    {/* Cute floating background bubbles */}
+                    <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/20 rounded-full blur-2xl pointer-events-none" />
+                    <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-pink-300/10 rounded-full blur-xl pointer-events-none" />
+                    
+                    <div className="relative flex flex-col lg:flex-row items-center justify-between gap-6">
+                      <div className="space-y-2 text-center lg:text-left">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/80 backdrop-blur-xs rounded-full text-xs font-black text-indigo-700 tracking-wider shadow-xs border border-indigo-50">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-spin" style={{ animationDuration: '3s' }} />
+                          SPARKLY TEMPLATE CENTER
+                        </div>
+                        <h2 className="text-2xl sm:text-3xl font-black text-indigo-950 leading-tight">
+                          🌸 Class Templates Library 🌸
+                        </h2>
+                        <p className="text-sm font-medium text-indigo-900/80 max-w-xl">
+                          Select one of our gorgeous, color-coded school programs below to inspect and load sample classes, or sync your own templates into the cloud.
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row items-stretch lg:items-center gap-3 w-full lg:w-auto shrink-0 relative z-10">
+                        {user && (
+                          <button 
+                            onClick={async () => {
+                              const templateName = prompt("Enter a name for this new template (based on current class):", `${level.name} Template`);
+                              if (!templateName) return;
+                              
+                              try {
+                                const templateId = Math.random().toString(36).substring(2, 9);
+                                await setDoc(doc(db, `templates`, templateId), {
+                                  name: templateName,
+                                  authorId: user.uid,
+                                  authorName: user.displayName || user.email || 'Teacher',
+                                  levels: [level]
+                                });
+                                fetchTemplates();
+                                alert("Current class saved as a template successfully!\n\nWhere to find it:\nIt is saved under 'My Saved Library' folder on this screen. Scroll down or go back to programs and click 'My Saved Library' to view and apply it.");
+                              } catch (e) {
+                                console.error("Error saving current class as template:", e);
+                                alert("Failed to save template.");
+                              }
+                            }} 
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl hover:brightness-110 active:scale-95 transition-all text-xs font-black shadow-sm"
+                          >
+                            <Save className="w-4 h-4" />
+                            Save Current Class
+                          </button>
+                        )}
+                        {onOpenTemplateModal && (
+                          <button 
+                            onClick={() => { onOpenTemplateModal(); onClose(); }} 
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-purple-700 border border-purple-200 rounded-xl hover:bg-purple-50 hover:shadow-md active:scale-95 transition-all text-xs font-black shadow-xs"
+                          >
+                            <Copy className="w-4 h-4 text-purple-500" />
+                            Use Class as Template
+                          </button>
+                        )}
+                        {user ? (
+                          <button 
+                            onClick={handleSaveTemplate} 
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:brightness-110 active:scale-95 transition-all text-xs font-black shadow-md shadow-indigo-150"
+                          >
+                            <Save className="w-4 h-4" />
+                            Save All My Levels
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => setActiveTab('account')} 
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-indigo-700 rounded-xl hover:bg-indigo-50 hover:shadow-md active:scale-95 transition-all text-xs font-black border border-indigo-100 shadow-xs"
+                          >
+                            <User className="w-4 h-4 text-indigo-500" />
+                            Sign In to Save Templates
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="mt-6">
                     {!selectedProgramId ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        {SYSTEM_TEMPLATES.filter(p => p.levels.length > 0).map((program) => (
-                          <button
-                            key={program.id}
-                            onClick={() => setSelectedProgramId(program.id)}
-                            className="group bg-white p-8 rounded-3xl border-2 border-slate-100 shadow-sm hover:shadow-xl hover:border-blue-400 hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center gap-6"
-                          >
-                            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                              <Database className="w-10 h-10" />
-                            </div>
-                            <div>
-                              <div className="flex items-center justify-center gap-2 mb-1">
-                                <h3 className="text-xl font-black text-slate-800 group-hover:text-blue-700 transition-colors">{program.name}</h3>
-                                {program.isAdmin && (
-                                  <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded border border-amber-200 tracking-tighter">Admin</span>
-                                )}
-                              </div>
-                              <p className="text-sm text-slate-500 mt-2 font-medium">{program.levels.length} levels available</p>
-                            </div>
-                            <div className="mt-4 px-6 py-2 bg-slate-50 rounded-full text-blue-600 text-xs font-bold uppercase tracking-wider group-hover:bg-blue-50 transition-colors">
-                              Select Program
-                            </div>
-                          </button>
-                        ))}
+                      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        {/* Information Note */}
+                        <div className="bg-gradient-to-r from-pink-50 via-purple-50 to-indigo-50 border border-indigo-100 rounded-2xl p-5 text-sm text-slate-700 leading-relaxed flex items-start gap-4 shadow-xs">
+                          <div className="p-2.5 bg-white rounded-xl shadow-xs text-indigo-500 shrink-0">
+                            <FolderOpen className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-indigo-950 block mb-1">💡 Super Easy Class Sync!</span>
+                            All the folders below contain pre-configured class profiles for your various subjects and schedules. Click on any program card to select your class and immediately apply it! Any templates you save will show up inside your personal <strong className="text-pink-600">"My Saved Library"</strong>.
+                          </div>
+                        </div>
 
-                        {savedTemplates.length > 0 && (
+                        {/* Colorful Program Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {SYSTEM_TEMPLATES.filter(p => p.levels.length > 0).map((program) => {
+                            // Fetch cute custom styles for each program
+                            let cardBg = "from-slate-50 via-slate-100/50 to-white";
+                            let cardBorder = "border-slate-200 hover:border-slate-400 hover:shadow-slate-100";
+                            let iconBg = "bg-slate-100 text-slate-600 group-hover:bg-slate-500 group-hover:text-white";
+                            let textCol = "text-slate-800 group-hover:text-slate-900";
+                            let pillBg = "bg-slate-100 text-slate-600";
+                            let emoji = "⭐";
+                            let subtitle = "Explore preset levels! 🎈";
+                            let iconComponent = <Database className="w-9 h-9" />;
+
+                            if (program.id === 'full-time-english') {
+                              cardBg = "from-blue-50/60 to-sky-50/20";
+                              cardBorder = "border-sky-100 hover:border-sky-300 hover:shadow-sky-100";
+                              iconBg = "bg-sky-100 text-sky-600 group-hover:bg-sky-500 group-hover:text-white";
+                              textCol = "text-sky-950 group-hover:text-sky-700";
+                              pillBg = "bg-sky-50 text-sky-700 border border-sky-100";
+                              emoji = "📖";
+                              subtitle = "Full-Time intensive English study! 🌟";
+                              iconComponent = <BookOpen className="w-9 h-9" />;
+                            } else if (program.id === 'part-time-english') {
+                              cardBg = "from-cyan-50/60 to-blue-50/20";
+                              cardBorder = "border-cyan-100 hover:border-cyan-300 hover:shadow-cyan-100";
+                              iconBg = "bg-cyan-100 text-cyan-600 group-hover:bg-cyan-500 group-hover:text-white";
+                              textCol = "text-cyan-950 group-hover:text-cyan-700";
+                              pillBg = "bg-cyan-50 text-cyan-700 border border-cyan-100";
+                              emoji = "🎒";
+                              subtitle = "Flexible Part-Time English levels! 📝";
+                              iconComponent = <GraduationCap className="w-9 h-9" />;
+                            } else if (program.id === 'khmer-program') {
+                              cardBg = "from-rose-50/60 to-pink-50/20";
+                              cardBorder = "border-rose-100 hover:border-rose-300 hover:shadow-rose-100";
+                              iconBg = "bg-rose-100 text-rose-600 group-hover:bg-rose-500 group-hover:text-white";
+                              textCol = "text-rose-950 group-hover:text-rose-700";
+                              pillBg = "bg-rose-50 text-rose-700 border border-rose-100";
+                              emoji = "🌸";
+                              subtitle = "Khmer program literature & grammar! ✒️";
+                              iconComponent = <Languages className="w-9 h-9" />;
+                            } else if (program.id === 'dpss-program') {
+                              cardBg = "from-purple-50/60 to-violet-50/20";
+                              cardBorder = "border-purple-100 hover:border-purple-300 hover:shadow-purple-100";
+                              iconBg = "bg-purple-100 text-purple-600 group-hover:bg-purple-500 group-hover:text-white";
+                              textCol = "text-purple-950 group-hover:text-purple-700";
+                              pillBg = "bg-purple-50 text-purple-700 border border-purple-100";
+                              emoji = "👑";
+                              subtitle = "DPS Academic Excellence Program! 🏆";
+                              iconComponent = <Award className="w-9 h-9" />;
+                            } else if (program.id === 'math-program') {
+                              cardBg = "from-emerald-50/60 to-teal-50/20";
+                              cardBorder = "border-emerald-100 hover:border-emerald-300 hover:shadow-emerald-100";
+                              iconBg = "bg-emerald-100 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white";
+                              textCol = "text-emerald-950 group-hover:text-emerald-700";
+                              pillBg = "bg-emerald-50 text-emerald-700 border border-emerald-100";
+                              emoji = "🧮";
+                              subtitle = "Fun logic, math & arithmetic! 📐";
+                              iconComponent = <Calculator className="w-9 h-9" />;
+                            }
+
+                            return (
+                              <button
+                                key={program.id}
+                                onClick={() => setSelectedProgramId(program.id)}
+                                className={`group relative bg-gradient-to-br ${cardBg} p-8 rounded-3xl border-2 ${cardBorder} shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center gap-5`}
+                              >
+                                {/* Cute corner floaty shape */}
+                                <span className="absolute top-3 right-3 text-lg opacity-80 group-hover:scale-125 transition-transform">{emoji}</span>
+                                
+                                <div className={`w-18 h-18 ${iconBg} rounded-2xl flex items-center justify-center transition-all duration-300 shadow-inner`}>
+                                  {iconComponent}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <h3 className={`text-lg font-black tracking-tight ${textCol} transition-colors`}>{program.name}</h3>
+                                    {program.isAdmin && (
+                                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[8px] font-black uppercase rounded border border-amber-200 tracking-wider">Admin</span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-[200px]">{subtitle}</p>
+                                </div>
+                                <div className="mt-2 space-y-2 w-full">
+                                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${pillBg}`}>
+                                    {program.levels.length} {program.levels.length === 1 ? 'class' : 'classes'}
+                                  </span>
+                                  <div className="text-[11px] text-slate-400 font-bold group-hover:text-slate-600 transition-colors uppercase tracking-wider pt-2 border-t border-slate-100/60">
+                                    Click to Open Binder 📂
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+
+                          {/* My Saved Library Card - Colored Super Cute */}
                           <button
                             onClick={() => setSelectedProgramId('saved')}
-                            className="group bg-white p-8 rounded-3xl border-2 border-slate-100 shadow-sm hover:shadow-xl hover:border-indigo-400 hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center gap-6"
+                            className="group relative bg-gradient-to-br from-amber-50 via-pink-50 to-purple-50 p-8 rounded-3xl border-2 border-amber-200 hover:border-pink-300 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center gap-5"
                           >
-                            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                              <User className="w-10 h-10" />
+                            <span className="absolute top-3 right-3 text-lg opacity-80 group-hover:scale-125 transition-transform">💝</span>
+                            <div className="w-18 h-18 bg-pink-100 text-pink-600 group-hover:bg-pink-500 group-hover:text-white rounded-2xl flex items-center justify-center transition-all duration-300 shadow-inner">
+                              <Heart className="w-9 h-9" />
                             </div>
-                            <div>
-                              <h3 className="text-xl font-black text-slate-800 group-hover:text-indigo-700 transition-colors">My Saved Library</h3>
-                              <p className="text-sm text-slate-500 mt-2 font-medium">{savedTemplates.length} templates configured</p>
+                            <div className="space-y-1">
+                              <h3 className="text-lg font-black tracking-tight text-pink-950 group-hover:text-pink-700 transition-colors">My Saved Library</h3>
+                              <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-[200px]">Your personal cloud templates safe on Firebase! ✨</p>
                             </div>
-                            <div className="mt-4 px-6 py-2 bg-slate-50 rounded-full text-indigo-600 text-xs font-bold uppercase tracking-wider group-hover:bg-indigo-50 transition-colors">
-                              View My Templates
+                            <div className="mt-2 space-y-2 w-full">
+                              <span className="inline-block px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-pink-100 text-pink-700 border border-pink-200">
+                                {savedTemplates.length} templates
+                              </span>
+                              <div className="text-[11px] text-pink-500 font-bold group-hover:text-pink-700 transition-colors uppercase tracking-wider pt-2 border-t border-slate-100/60">
+                                Open Saved Library 💝
+                              </div>
                             </div>
                           </button>
-                        )}
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-500">
-                        <div className="flex items-center justify-between gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        {/* Folder Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
                           <div className="flex items-center gap-3">
                             <button
                               onClick={() => setSelectedProgramId(null)}
-                              className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-500 hover:text-blue-600 transition-all flex items-center gap-2 font-bold text-sm"
+                              className="px-3.5 py-2 bg-slate-50 hover:bg-slate-100 hover:shadow-xs rounded-xl text-slate-600 hover:text-indigo-600 transition-all flex items-center gap-2 font-bold text-xs border border-slate-200/60"
                             >
                               <Plus className="w-4 h-4 rotate-45" /> Back to Programs
                             </button>
                             <div className="h-6 w-px bg-slate-200" />
-                            <h3 className="text-lg font-black text-slate-800">
-                              {selectedProgramId === 'saved' ? 'My Saved Templates' : SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.name}
+                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                              📂 {selectedProgramId === 'saved' ? 'My Saved Templates' : SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.name}
                             </h3>
                           </div>
-                          <span className="px-3 py-1 bg-white rounded-full text-xs font-bold text-slate-400 uppercase tracking-tighter border border-slate-200">
-                            {selectedProgramId === 'saved' ? `${savedTemplates.length} items` : `${SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels.length} items`}
+                          <span className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-black uppercase tracking-wider border border-indigo-100 self-start sm:self-auto">
+                            {selectedProgramId === 'saved' ? `${savedTemplates.length} Items` : `${SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels.length || 0} Available`}
                           </span>
                         </div>
 
                         {selectedProgramId === 'saved' ? (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {savedTemplates.map(template => (
-                              <div key={template.id} className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all duration-300 flex flex-col">
-                                <div className="flex items-start gap-4 mb-4">
-                                  <div className="p-3 bg-indigo-50 rounded-xl shrink-0 group-hover:bg-indigo-100 transition-colors">
-                                    <User className="w-6 h-6 text-indigo-600" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 truncate">
-                                        <h4 className="font-bold text-slate-800 text-lg truncate leading-tight group-hover:text-indigo-700 transition-colors" title={template.name}>{template.name}</h4>
-                                        {template.isAdmin && (
-                                          <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded border border-amber-200 tracking-tighter">Admin</span>
-                                        )}
+                          savedTemplates.length === 0 ? (
+                            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center max-w-lg mx-auto shadow-sm">
+                              <div className="w-16 h-16 bg-pink-50 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Heart className="w-8 h-8" />
+                              </div>
+                              <h4 className="text-xl font-black text-slate-800 mb-2">Saved Library is Empty</h4>
+                              <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                                You haven't saved any custom templates yet. To add a template here:
+                              </p>
+                              <div className="text-left bg-gradient-to-r from-pink-50 to-purple-50 p-5 rounded-2xl space-y-2.5 text-xs text-slate-700 mb-6 border border-indigo-50/50">
+                                <p className="flex items-start gap-2">
+                                  <span className="w-2 h-2 bg-pink-500 rounded-full mt-1 shrink-0" />
+                                  <span>Click <strong className="text-indigo-900">"Save Current Class as Template"</strong> in the header of this tab.</span>
+                                </p>
+                                <p className="flex items-start gap-2">
+                                  <span className="w-2 h-2 bg-pink-500 rounded-full mt-1 shrink-0" />
+                                  <span>In the main grade sheet view, click <strong className="text-indigo-900">"Save as a template"</strong> (if authorized) to sync directly to your cloud.</span>
+                                </p>
+                                <p className="flex items-start gap-2">
+                                  <span className="w-2 h-2 bg-pink-500 rounded-full mt-1 shrink-0" />
+                                  <span>All saved structures are safely secured on Firebase and accessible anywhere!</span>
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                              {savedTemplates.map(template => (
+                                <div 
+                                  key={template.id || Math.random().toString()} 
+                                  className="group relative bg-white p-6 rounded-3xl border-2 border-pink-100 hover:border-pink-300 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between border-l-8 border-l-pink-400"
+                                >
+                                  <div>
+                                    <div className="flex items-start gap-4 mb-4">
+                                      <div className="p-3 bg-pink-50 rounded-2xl shrink-0 group-hover:bg-pink-100 transition-colors text-pink-500">
+                                        <Heart className="w-6 h-6" />
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        <button 
-                                          onClick={() => handleRenameTemplate(template.id, (template as any).authorId, template.name)}
-                                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                          title="Rename"
-                                        >
-                                          <Edit2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button 
-                                          onClick={() => handleDeleteTemplate(template.id, (template as any).authorId)}
-                                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Delete"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <h4 className="font-black text-slate-800 text-base truncate group-hover:text-pink-700 transition-colors" title={template.name}>
+                                            {template.name || 'Untitled Template'}
+                                          </h4>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <button 
+                                              onClick={() => handleRenameTemplate(template.id, (template as any).authorId, template.name || '')}
+                                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                              title="Rename Template"
+                                            >
+                                              <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button 
+                                              onClick={() => handleDeleteTemplate(template.id, (template as any).authorId)}
+                                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                              title="Delete Template"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mt-1">
+                                          By {template.authorName || 'Teacher'}
+                                        </p>
                                       </div>
                                     </div>
-                                    <p className="text-sm text-slate-500 mt-1 font-medium">{template.levels.length} levels configured</p>
+
+                                    {/* Inline list of classes/subjects */}
+                                    <div className="mt-3 bg-slate-50 p-3 rounded-2xl space-y-1.5 border border-slate-100">
+                                      <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Included Sample Classes</span>
+                                      {(template.levels || []).map((lvl, idx) => (
+                                        <div key={lvl.id || idx} className="text-xs text-slate-700 flex items-center justify-between font-semibold">
+                                          <span className="truncate">🎒 {lvl.name}</span>
+                                          <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-md shrink-0">
+                                            {(lvl.subjects || []).length} Subjects
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                                <div className="mt-auto pt-5 border-t border-slate-50 flex flex-col gap-2">
-                                  <button 
-                                    onClick={() => handleApplyToCurrentLevel(template.levels)}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-sm shadow-indigo-200"
-                                  >
-                                    <Copy className="w-4 h-4" /> Apply to Class
-                                  </button>
-                                  {user && user.uid === (template as any).authorId && (
+
+                                  <div className="mt-5 pt-4 border-t border-slate-50 flex flex-col gap-2">
                                     <button 
-                                      onClick={() => setEditingTemplate(template as any)}
-                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 active:scale-95 transition-all"
+                                      onClick={() => handleApplyToCurrentLevel(template.levels || [])}
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-pink-500 to-pink-600 rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-xs shadow-pink-200"
                                     >
-                                      <Edit2 className="w-4 h-4" /> Edit Details
+                                      <Copy className="w-4 h-4" /> Apply to Class
                                     </button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {(SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels || []).map((lvl) => (
-                              <div key={lvl.id} className="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 flex flex-col">
-                                <div className="flex items-start gap-4 mb-6">
-                                  <div className="p-3 bg-blue-50 rounded-xl shrink-0 group-hover:bg-blue-100 transition-colors">
-                                    <FileText className="w-6 h-6 text-blue-600" />
+                                    <button 
+                                      onClick={() => handleDuplicateTemplate(template)}
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-600 bg-slate-50 rounded-2xl hover:bg-slate-100 hover:text-slate-950 active:scale-95 transition-all"
+                                    >
+                                      <Copy className="w-4 h-4" /> Copy to My Library
+                                    </button>
+                                    {user && user.uid === (template as any).authorId && (
+                                      <button 
+                                        onClick={() => setEditingTemplate(template as any)}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-2xl active:scale-95 transition-all mt-1"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" /> Edit Template Details
+                                      </button>
+                                    )}
                                   </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 truncate">
-                                        <h4 className="font-bold text-slate-800 text-lg leading-tight group-hover:text-blue-700 transition-colors">{lvl.name}</h4>
-                                        {SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.isAdmin && (
-                                          <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-black uppercase rounded border border-amber-200 tracking-tighter">Admin</span>
-                                        )}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        ) : (
+                          /* System Program Folder View */
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {(SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.levels || []).map((lvl) => {
+                              // Colors matching the program ID
+                              let itemBorderCol = "border-l-indigo-400 border-indigo-100 hover:border-indigo-300";
+                              let itemIconBg = "bg-indigo-50 text-indigo-500";
+                              let btnBg = "from-indigo-600 to-indigo-700 shadow-indigo-100";
+                              let iconComponent = <FileText className="w-6 h-6" />;
+
+                              if (selectedProgramId === 'full-time-english') {
+                                itemBorderCol = "border-l-sky-400 border-sky-100 hover:border-sky-300";
+                                itemIconBg = "bg-sky-50 text-sky-500";
+                                btnBg = "from-sky-500 to-sky-600 shadow-sky-150";
+                                iconComponent = <BookOpen className="w-6 h-6" />;
+                              } else if (selectedProgramId === 'part-time-english') {
+                                itemBorderCol = "border-l-cyan-400 border-cyan-100 hover:border-cyan-300";
+                                itemIconBg = "bg-cyan-50 text-cyan-500";
+                                btnBg = "from-cyan-500 to-cyan-600 shadow-cyan-150";
+                                iconComponent = <GraduationCap className="w-6 h-6" />;
+                              } else if (selectedProgramId === 'khmer-program') {
+                                itemBorderCol = "border-l-rose-400 border-rose-100 hover:border-rose-300";
+                                itemIconBg = "bg-rose-50 text-rose-500";
+                                btnBg = "from-rose-500 to-rose-600 shadow-rose-150";
+                                iconComponent = <Languages className="w-6 h-6" />;
+                              } else if (selectedProgramId === 'dpss-program') {
+                                itemBorderCol = "border-l-purple-400 border-purple-100 hover:border-purple-300";
+                                itemIconBg = "bg-purple-50 text-purple-500";
+                                btnBg = "from-purple-500 to-purple-600 shadow-purple-150";
+                                iconComponent = <Award className="w-6 h-6" />;
+                              } else if (selectedProgramId === 'math-program') {
+                                itemBorderCol = "border-l-emerald-400 border-emerald-100 hover:border-emerald-300";
+                                itemIconBg = "bg-emerald-50 text-emerald-500";
+                                btnBg = "from-emerald-500 to-emerald-600 shadow-emerald-150";
+                                iconComponent = <Calculator className="w-6 h-6" />;
+                              }
+
+                              return (
+                                <div 
+                                  key={lvl.id || Math.random().toString()} 
+                                  className={`group bg-white p-6 rounded-3xl border-2 ${itemBorderCol} shadow-xs hover:shadow-md transition-all duration-300 flex flex-col justify-between border-l-8`}
+                                >
+                                  <div>
+                                    <div className="flex items-start gap-4 mb-4">
+                                      <div className={`p-3 ${itemIconBg} rounded-2xl shrink-0 group-hover:scale-105 transition-transform`}>
+                                        {iconComponent}
                                       </div>
-                                      <div className="flex items-center gap-1">
-                                        <button 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleRenameTemplate(lvl.id, 'system', lvl.name);
-                                          }}
-                                          className="p-1.5 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                          title="Rename System Template"
-                                        >
-                                          <Edit2 className="w-3 h-3" />
-                                        </button>
-                                        <button 
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteTemplate(lvl.id, 'system');
-                                          }}
-                                          className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Delete System Template"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <h4 className="font-black text-slate-800 text-base leading-tight group-hover:text-indigo-600 transition-colors truncate">
+                                            {lvl.name || 'Untitled Level'}
+                                          </h4>
+                                          {SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.isAdmin && (
+                                            <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[8px] font-black uppercase rounded border border-amber-200 tracking-wider">Admin</span>
+                                          )}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 flex items-center gap-1.5">
+                                          <span>📁 {SYSTEM_TEMPLATES.find(p => p.id === selectedProgramId)?.name}</span>
+                                        </p>
                                       </div>
                                     </div>
-                                    <p className="text-xs text-slate-500 mt-1.5 font-medium flex items-center gap-2">
-                                      <span className="px-1.5 py-0.5 bg-slate-100 rounded">{lvl.subjects.length} Subjects</span>
-                                      <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                                      <span>{lvl.subjects.reduce((acc, s) => acc + s.categories.length, 0)} Categories</span>
-                                    </p>
+
+                                    {/* Inline list of subjects and category items - Very Cute */}
+                                    <div className="mt-3 bg-slate-50 p-3 rounded-2xl space-y-1.5 border border-slate-100">
+                                      <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Included Subject Sample</span>
+                                      {(lvl.subjects || []).map((sub, idx) => (
+                                        <div key={sub.id || idx} className="space-y-1">
+                                          <div className="text-xs text-slate-800 flex items-center justify-between font-bold">
+                                            <span>📚 {sub.name}</span>
+                                            <span className="text-[9px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-black uppercase">
+                                              {sub.targetWeight}% WTD
+                                            </span>
+                                          </div>
+                                          <div className="flex flex-wrap gap-1">
+                                            {(sub.categories || []).slice(0, 4).map((cat, cIdx) => (
+                                              <span key={cat.id || cIdx} className="text-[9px] bg-white text-slate-500 border border-slate-200/60 px-1.5 py-0.5 rounded-md font-semibold">
+                                                {cat.name} ({cat.weight}%)
+                                              </span>
+                                            ))}
+                                            {(sub.categories || []).length > 4 && (
+                                              <span className="text-[9px] bg-slate-100 text-slate-400 px-1 rounded font-bold">
+                                                +{sub.categories.length - 4} more
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-5 pt-4 border-t border-slate-50 flex flex-col gap-2">
+                                    <button 
+                                      onClick={() => handleApplyToCurrentLevel([lvl])}
+                                      className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r ${btnBg} rounded-2xl hover:brightness-110 active:scale-95 transition-all`}
+                                    >
+                                      <Copy className="w-4 h-4" /> Apply to Class
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDuplicateTemplate({
+                                        id: `${selectedProgramId}_${lvl.id}_${Date.now()}`,
+                                        name: `${lvl.name || 'Level'} Template`,
+                                        authorName: 'System',
+                                        levels: [lvl]
+                                      })}
+                                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider text-slate-600 bg-slate-50 rounded-2xl hover:bg-slate-100 hover:text-slate-950 active:scale-95 transition-all"
+                                    >
+                                      <Copy className="w-4 h-4" /> Copy to My Library
+                                    </button>
                                   </div>
                                 </div>
-                                <div className="mt-auto pt-5 border-t border-slate-50 flex flex-col gap-2">
-                                  <button 
-                                    onClick={() => handleApplyToCurrentLevel([lvl])}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-sm shadow-blue-200"
-                                  >
-                                    <Copy className="w-4 h-4" /> Apply to Class
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDuplicateTemplate({
-                                      id: `${selectedProgramId}_${lvl.id}_${Date.now()}`,
-                                      name: `${lvl.name} Template`,
-                                      authorName: 'System',
-                                      levels: [lvl]
-                                    })}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-slate-600 bg-slate-50 rounded-xl hover:bg-slate-100 hover:text-slate-900 active:scale-95 transition-all"
-                                  >
-                                    <Copy className="w-4 h-4" /> Copy to My Library
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                         
                         {/* Unlock Code Section */}
                         <div className="mt-12 pt-8 border-t border-slate-200 max-w-md mx-auto text-center">
-                          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">
-                            <Lock className="w-3 h-3" />
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4 border border-slate-200/40">
+                            <Lock className="w-3 h-3 text-slate-400" />
                             Admin Template Management
                           </div>
-                          <h4 className="text-sm font-bold text-slate-800 mb-2">Enter Unlock Code to Manage Library</h4>
-                          <p className="text-xs text-slate-500 mb-4">Enter the DPS authorization code to rename or delete templates directly from the library.</p>
+                          <h4 className="text-xs font-bold text-slate-800 mb-1">Enter Unlock Code to Manage Library</h4>
+                          <p className="text-[10px] text-slate-500 mb-4 font-medium leading-relaxed">Enter the DPS authorization code to rename or delete templates directly from the library.</p>
                           <div className="flex gap-2 max-w-xs mx-auto">
                             <input 
                               type="password"
@@ -1947,11 +2161,11 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                                 localStorage.setItem("gradecalc_unlock_code", val);
                               }}
                               placeholder="Enter Code (e.g. DPSS or BPS)"
-                              className="flex-1 px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none text-center font-mono tracking-widest"
+                              className="flex-1 px-4 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none text-center font-mono tracking-widest font-black"
                             />
                           </div>
                           {["DPSS", "DPS", "BPS", "BPSS"].includes(unlockCode.trim().toUpperCase()) && (
-                            <p className="mt-2 text-[10px] font-bold text-green-600 uppercase animate-pulse">✓ Library Unlocked - Administrative Access Granted</p>
+                            <p className="mt-2 text-[10px] font-black text-green-600 uppercase tracking-widest animate-pulse">✓ Library Unlocked - Administrative Access Granted</p>
                           )}
                         </div>
                       </div>

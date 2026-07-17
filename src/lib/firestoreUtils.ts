@@ -118,9 +118,9 @@ export async function saveLevel(userId: string, level: Level) {
     return;
   }
 
-  const path = `users/${userId}/levels/${level.id}`;
+  const path = `levels/${level.id}`;
   try {
-    await setDoc(doc(db, 'users', userId, 'levels', level.id), level);
+    await setDoc(doc(db, 'levels', level.id), level);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -141,11 +141,11 @@ export async function saveLevelsBatch(userId: string, levels: Level[]) {
     return;
   }
 
-  const path = `users/${userId}/levels (batch)`;
+  const path = `levels (batch)`;
   try {
     const batch = writeBatch(db);
     levels.forEach(level => {
-      const levelRef = doc(db, 'users', userId, 'levels', level.id);
+      const levelRef = doc(db, 'levels', level.id);
       batch.set(levelRef, level);
     });
     await batch.commit();
@@ -162,9 +162,9 @@ export async function deleteLevel(userId: string, levelId: string) {
     return;
   }
 
-  const path = `users/${userId}/levels/${levelId}`;
+  const path = `levels/${levelId}`;
   try {
-    await deleteDoc(doc(db, 'users', userId, 'levels', levelId));
+    await deleteDoc(doc(db, 'levels', levelId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -189,13 +189,13 @@ export async function saveClassRecord(userId: string, classRecord: ClassRecord) 
     return;
   }
 
-  const path = `users/${userId}/classes/${classRecord.id}`;
+  const path = `classes/${classRecord.id}`;
   try {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { ...metadata } = classRecord;
     // @ts-ignore - explicitly removing students from the object if it exists
     delete metadata.students;
-    await setDoc(doc(db, 'users', userId, 'classes', classRecord.id), metadata);
+    await setDoc(doc(db, 'classes', classRecord.id), metadata);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -214,9 +214,9 @@ export async function saveStudent(userId: string, classId: string, student: Stud
     return;
   }
 
-  const path = `users/${userId}/classes/${classId}/students/${student.id}`;
+  const path = `classes/${classId}/students/${student.id}`;
   try {
-    await setDoc(doc(db, 'users', userId, 'classes', classId, 'students', student.id), student);
+    await setDoc(doc(db, 'classes', classId, 'students', student.id), student);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -237,7 +237,7 @@ export async function saveStudentsBatch(userId: string, classId: string, batchSt
     return;
   }
 
-  const path = `users/${userId}/classes/${classId}/students (batch)`;
+  const path = `classes/${classId}/students (batch)`;
   try {
     // Firestore batch has a limit of 500 operations. We need to chunk the student list.
     const CHUNK_SIZE = 500;
@@ -245,7 +245,7 @@ export async function saveStudentsBatch(userId: string, classId: string, batchSt
       const chunk = batchStudents.slice(i, i + CHUNK_SIZE);
       const batch = writeBatch(db);
       chunk.forEach(student => {
-        const studentRef = doc(db, 'users', userId, 'classes', classId, 'students', student.id);
+        const studentRef = doc(db, 'classes', classId, 'students', student.id);
         batch.set(studentRef, student);
       });
       await batch.commit();
@@ -263,9 +263,9 @@ export async function deleteStudent(userId: string, classId: string, studentId: 
     return;
   }
 
-  const path = `users/${userId}/classes/${classId}/students/${studentId}`;
+  const path = `classes/${classId}/students/${studentId}`;
   try {
-    await deleteDoc(doc(db, 'users', userId, 'classes', classId, 'students', studentId));
+    await deleteDoc(doc(db, 'classes', classId, 'students', studentId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -290,8 +290,8 @@ export function subscribeToStudents(userId: string, classId: string, callback: (
     };
   }
 
-  const path = `users/${userId}/classes/${classId}/students`;
-  const q = query(collection(db, 'users', userId, 'classes', classId, 'students'));
+  const path = `classes/${classId}/students`;
+  const q = query(collection(db, 'classes', classId, 'students'));
   return onSnapshot(q, (snapshot) => {
     const students = snapshot.docs.map(doc => doc.data() as Student);
     callback(students);
@@ -311,9 +311,9 @@ export async function deleteClassRecordRef(userId: string, classId: string) {
     return;
   }
 
-  const path = `users/${userId}/classes/${classId}`;
+  const path = `classes/${classId}`;
   try {
-    await deleteDoc(doc(db, 'users', userId, 'classes', classId));
+    await deleteDoc(doc(db, 'classes', classId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }
@@ -328,8 +328,8 @@ export function subscribeToLevels(userId: string, callback: (levels: Level[]) =>
     };
   }
 
-  const path = `users/${userId}/levels`;
-  const q = query(collection(db, 'users', userId, 'levels'));
+  const path = `levels`;
+  const q = query(collection(db, 'levels'));
   return onSnapshot(q, (snapshot) => {
     const levels = snapshot.docs.map(doc => doc.data() as Level);
     callback(levels);
@@ -347,8 +347,8 @@ export function subscribeToClasses(userId: string, callback: (classes: ClassReco
     };
   }
 
-  const path = `users/${userId}/classes`;
-  const q = query(collection(db, 'users', userId, 'classes'));
+  const path = `classes`;
+  const q = query(collection(db, 'classes'));
   return onSnapshot(q, (snapshot) => {
     const classes = snapshot.docs.map(doc => doc.data() as ClassRecord);
     callback(classes);

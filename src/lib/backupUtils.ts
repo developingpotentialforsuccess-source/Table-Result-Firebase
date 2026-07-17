@@ -22,7 +22,7 @@ export async function createBackupData(user: any, levels: Level[], classRecords:
     if (!isFirebaseConfigured()) {
       studentsList = getLocalStudents(userId, cr.id);
     } else {
-      const studentsSnapshot = await getDocs(collection(db, 'users', userId, 'classes', cr.id, 'students'));
+      const studentsSnapshot = await getDocs(collection(db, 'classes', cr.id, 'students'));
       studentsList = studentsSnapshot.docs.map(d => d.data() as Student);
     }
     
@@ -56,7 +56,7 @@ export async function exportFullBackup(userId: string, levels: Level[], classRec
       if (!isFirebaseConfigured()) {
         studentsList = getLocalStudents(userId, cr.id);
       } else {
-        const studentsSnapshot = await getDocs(collection(db, 'users', userId, 'classes', cr.id, 'students'));
+        const studentsSnapshot = await getDocs(collection(db, 'classes', cr.id, 'students'));
         studentsList = studentsSnapshot.docs.map(d => d.data() as Student);
       }
       

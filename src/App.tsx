@@ -343,6 +343,32 @@ const DEFAULT_LEVELS: Level[] = [
         categories: [{ id: "math_l1_cat", name: "Math Quiz", weight: 100, itemCount: 1, itemMaxScores: [100] }]
       }
     ]
+  },
+  {
+    id: "dpss_l6",
+    name: "DPSS Level 6",
+    gradingScale: DEFAULT_GRADING_SCALE,
+    program: "DPSS Program",
+    subjects: [
+      {
+        id: "dpss_l6_general",
+        name: "General English",
+        targetWeight: 100,
+        midtermTargetWeight: 100,
+        finalTargetWeight: 100,
+        fullModeMidtermWeight: 8,
+        fullModeFinalWeight: 62,
+        categories: [
+          { id: "l6_speaking_quiz", name: "Speaking Quiz", weight: 10, itemCount: 1, itemMaxScores: [100] },
+          { id: "l6_campaign", name: "Campaign", weight: 10, itemCount: 1, itemMaxScores: [100] },
+          { id: "l6_participation", name: "Participation", weight: 10, itemCount: 1, itemMaxScores: [100] },
+          { id: "l6_mt_speaking", name: "Midterm: Speaking", weight: 10, midtermWeight: 15, itemCount: 1, itemMaxScores: [100], isMidterm: true },
+          { id: "l6_mt_vocab", name: "Midterm: Vocabulary", weight: 10, midtermWeight: 15, itemCount: 1, itemMaxScores: [100], isMidterm: true },
+          { id: "l6_ft_speaking", name: "Final: Speaking", weight: 25, finalWeight: 15, itemCount: 1, itemMaxScores: [100], isFinal: true },
+          { id: "l6_ft_vocab", name: "Final: Vocabulary", weight: 25, finalWeight: 15, itemCount: 1, itemMaxScores: [100], isFinal: true }
+        ]
+      }
+    ]
   }
 ];
 
@@ -483,6 +509,7 @@ export default function App() {
   const [levelToRename, setLevelToRename] = useState<Level | null>(null);
   const [newLevelProfileName, setNewLevelProfileName] = useState("");
   const hasInitializedLevelsRef = useRef(false);
+  const hasCheckedSampleSeedingRef = useRef(false);
 
   const [unlockedClassIds, setUnlockedClassIds] = useState<string[]>(() => {
     try {
@@ -618,7 +645,7 @@ export default function App() {
           termName: "Term 1, 2026",
           className: "Grade 10 - Section A",
           teacherName: "Teacher Name",
-          levelId: "l1",
+          levelId: "pte_foundation_a",
           accessCode: "dps",
           studentCount: 0,
           settings: DEFAULT_SETTINGS,
@@ -634,6 +661,157 @@ export default function App() {
       unsubClasses();
     };
   }, [user]);
+
+  // Seed sample classes for all major programs if they do not have one
+  useEffect(() => {
+    if (isLevelsLoading || !user || levels.length === 0 || classRecords.length === 0) {
+      return;
+    }
+
+    if (hasCheckedSampleSeedingRef.current) {
+      return;
+    }
+    hasCheckedSampleSeedingRef.current = true;
+
+    const generateSampleScoresForLevel = (lvl: Level | undefined): Record<string, number> => {
+      const scores: Record<string, number> = {};
+      if (!lvl) return scores;
+
+      lvl.subjects.forEach(subj => {
+        subj.categories.forEach(cat => {
+          const count = cat.itemCount || 1;
+          for (let i = 0; i < count; i++) {
+            const randomScore = Math.floor(Math.random() * 21) + 78; // 78 to 98
+            scores[`${cat.id}_${i}`] = randomScore;
+          }
+        });
+      });
+
+      return scores;
+    };
+
+    const seedSamples = async () => {
+      const activeClasses = classRecords.filter(c => !c.isDeleted);
+      
+      const programsToCheck = [
+        { 
+          key: "Part-time English",
+          className: "Grade 10 - Part-Time English (Sample)",
+          levelId: "pte_foundation_a",
+          defaultLevel: DEFAULT_LEVELS.find(l => l.id === "pte_foundation_a")
+        },
+        { 
+          key: "Full-time English",
+          className: "Grade 2A - Full-Time English (Sample)",
+          levelId: "fte_2a",
+          defaultLevel: DEFAULT_LEVELS.find(l => l.id === "fte_2a")
+        },
+        { 
+          key: "Khmer Program",
+          className: "Grade 4 - Khmer Language (Sample)",
+          levelId: "khmer_l1",
+          defaultLevel: DEFAULT_LEVELS.find(l => l.id === "khmer_l1")
+        },
+        { 
+          key: "Math Program",
+          className: "Grade 8 - Mathematics (Sample)",
+          levelId: "math_l1",
+          defaultLevel: DEFAULT_LEVELS.find(l => l.id === "math_l1")
+        },
+        { 
+          key: "DPSS Program",
+          className: "Level 6 - DPSS Program (Sample)",
+          levelId: "dpss_l6",
+          defaultLevel: DEFAULT_LEVELS.find(l => l.id === "dpss_l6")
+        }
+      ];
+
+      let didSeed = false;
+
+      for (const prog of programsToCheck) {
+        // Check if there is an active class for this program
+        const hasClassForProgram = activeClasses.some(c => {
+          const l = levels.find(lvl => lvl.id === c.levelId);
+          return l && l.program && l.program.toLowerCase() === prog.key.toLowerCase();
+        });
+
+        if (!hasClassForProgram) {
+          console.log(`[Auto-Seeding] Seeding sample class for program: ${prog.key}`);
+          
+          // 1. Ensure the Level exists
+          let targetLevelId = prog.levelId;
+          const hasLevel = levels.some(l => l.id === prog.levelId);
+          if (!hasLevel && prog.defaultLevel) {
+            await saveLevel(user.uid, prog.defaultLevel);
+          }
+
+          // 2. Create the Class Record
+          const classId = `sample_${prog.levelId}_${Math.random().toString(36).substr(2, 5)}`;
+          const sampleClass: ClassRecord = {
+            id: classId,
+            termName: "Term 1, 2026",
+            className: prog.className,
+            teacherName: "Sample Teacher",
+            levelId: targetLevelId,
+            accessCode: "dps",
+            studentCount: 3,
+            settings: DEFAULT_SETTINGS,
+            createdAt: new Date().toISOString(),
+          };
+
+          await saveClassRecord(user.uid, sampleClass);
+
+          // 3. Create 3 sample students with populated grades so the user has actual data to look at!
+          const sexChoices: ("Male" | "Female")[] = ["Male", "Female", "Male"];
+          const sampleNames = prog.key.includes("Khmer") 
+            ? ["Sokha Mean (Khmer Sample)", "Chanthou Kim (Khmer Sample)", "Narith Seng (Khmer Sample)"]
+            : prog.key.includes("DPSS")
+            ? ["Rathana Long (DPSS Sample)", "Sreyneang Chay (DPSS Sample)", "Borey Chet (DPSS Sample)"]
+            : prog.key.includes("Math")
+            ? ["Kosal Mao (Math Sample)", "Vannak Meas (Math Sample)", "Sreypich Phun (Math Sample)"]
+            : ["John Doe (English Sample)", "Sophia Reed (English Sample)", "Ethan Hunt (English Sample)"];
+
+          const sampleStudents: Student[] = [
+            {
+              id: `${classId}_student_1`,
+              name: sampleNames[0],
+              sex: sexChoices[0],
+              scores: generateSampleScoresForLevel(prog.defaultLevel || levels.find(l => l.id === targetLevelId)),
+              attendance: "100%",
+              comment: "Excellent performance and active participation in class."
+            },
+            {
+              id: `${classId}_student_2`,
+              name: sampleNames[1],
+              sex: sexChoices[1],
+              scores: generateSampleScoresForLevel(prog.defaultLevel || levels.find(l => l.id === targetLevelId)),
+              attendance: "95%",
+              comment: "Great effort. Highly engaged in group work."
+            },
+            {
+              id: `${classId}_student_3`,
+              name: sampleNames[2],
+              sex: sexChoices[2],
+              scores: generateSampleScoresForLevel(prog.defaultLevel || levels.find(l => l.id === targetLevelId)),
+              attendance: "90%",
+              comment: "Consistent and solid worker. Well done."
+            }
+          ];
+
+          await saveStudentsBatch(user.uid, classId, sampleStudents);
+          didSeed = true;
+        }
+      }
+
+      if (didSeed) {
+        console.log("[Auto-Seeding] Finished seeding sample classes successfully!");
+      }
+    };
+
+    seedSamples().catch(err => {
+      console.error("[Auto-Seeding] Error seeding samples:", err);
+    });
+  }, [isLevelsLoading, user, levels, classRecords]);
 
   // Subscribe to students of the current class
   useEffect(() => {
@@ -821,7 +999,7 @@ export default function App() {
           lastSyncedAt: new Date().toISOString(),
           isAdmin: true
         });
-        alert(`Template "${templateName}" synced and updated successfully!`);
+        alert(`Template "${templateName}" synced and updated successfully!\n\nWhere to find it:\nOpen "Level settings" -> click the "Templates & Sync" tab -> select the "My Saved Library" folder at the bottom to view or apply your template.`);
       } else {
         // Create new
         const newTemplate = {
@@ -834,7 +1012,7 @@ export default function App() {
           isAdmin: true
         };
         await addDoc(collection(db, "templates"), newTemplate);
-        alert(`New Admin Template "${templateName}" saved and synced!`);
+        alert(`New Admin Template "${templateName}" saved and synced successfully!\n\nWhere to find it:\nOpen "Level settings" -> click the "Templates & Sync" tab -> select the "My Saved Library" folder at the bottom to view or apply your template.`);
       }
       fetchTemplates();
     } catch (e) {
@@ -890,7 +1068,7 @@ export default function App() {
           backupData.students[record.id] = getLocalStudents(user.uid, record.id);
         } else {
           try {
-            const q = query(collection(db, "users", user.uid, "classes", record.id, "students"));
+            const q = query(collection(db, "classes", record.id, "students"));
             const snapshot = await getDocs(q);
             backupData.students[record.id] = snapshot.docs.map(doc => doc.data());
           } catch (e) {
@@ -1357,7 +1535,7 @@ export default function App() {
             if (!isFirebaseConfigured()) {
               templateStudents = getLocalStudents(user.uid, selectedTemplateId);
             } else {
-              const snapshot = await getDocs(collection(db, 'users', user.uid, 'classes', selectedTemplateId, 'students'));
+              const snapshot = await getDocs(collection(db, 'classes', selectedTemplateId, 'students'));
               templateStudents = snapshot.docs.map(doc => doc.data() as Student);
             }
             const newStudents: Student[] = templateStudents.map(s => ({
@@ -2537,6 +2715,45 @@ export default function App() {
                 <Plus className="w-4 h-4" />
                 Add Student
               </button>
+
+              {/* Connection Status Badge */}
+              {isFirebaseConfigured() ? (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-bold rounded-lg border bg-emerald-50 text-emerald-700 border-emerald-200 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  CLOUD SYNCED
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-bold rounded-lg border bg-amber-50 text-amber-700 border-amber-200 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  LOCAL (NO SYNC)
+                </div>
+              )}
+
+              {/* User Profile Info */}
+              {user && (
+                <div className="flex items-center gap-2 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg shrink-0">
+                  {user.photoURL ? (
+                    <img 
+                      src={user.photoURL} 
+                      alt={user.displayName || "User"} 
+                      className="w-6 h-6 rounded-full"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                      {getInitials(user.displayName || user.email || "U")}
+                    </div>
+                  )}
+                  <div className="flex flex-col text-left max-w-[120px]">
+                    <span className="text-[9px] font-black leading-none text-slate-700 truncate">
+                      {user.displayName || "User"}
+                    </span>
+                    <span className="text-[8px] font-bold leading-none text-slate-400 truncate mt-0.5" title={user.email || ""}>
+                      {user.email || "Offline"}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={handleLogout}
@@ -3824,7 +4041,24 @@ export default function App() {
                 </div>
               </div>
             )}
-            {currentTab === "dashboard" ? (
+            {selectedProgram !== "all" && filteredRecords.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 bg-white border border-slate-200 rounded-3xl m-6 text-center max-w-md mx-auto shadow-sm">
+                <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                  <Database className="w-8 h-8 animate-pulse" />
+                </div>
+                <h3 className="text-lg font-black text-slate-800 mb-2">No Classes in "{selectedProgram}"</h3>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  There are currently no active class records assigned to the program <strong>"{selectedProgram}"</strong>. 
+                  You can clear the filter to view other classes, or configure a class level profile under <strong>Level settings</strong> to place it in this program.
+                </p>
+                <button
+                  onClick={() => setSelectedProgram("all")}
+                  className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all"
+                >
+                  Show All Programs
+                </button>
+              </div>
+            ) : currentTab === "dashboard" ? (
               <Dashboard currentRecord={currentRecord} students={students} currentLevel={currentLevel} resultMode={resultMode} />
             ) : activeView === 'attendance' ? (
               <AttendanceTracker 

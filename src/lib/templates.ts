@@ -563,21 +563,93 @@ export const SYSTEM_TEMPLATES = [
     name: 'ERA Program',
     authorName: 'System',
     isAdmin: true,
-    levels: []
+    levels: [
+      {
+        id: 'era_level_1',
+        name: 'ERA Level 1',
+        attendanceWeight: 10,
+        subjects: [
+          {
+            id: 'era_l1_english',
+            name: 'English Language',
+            targetWeight: 100,
+            midtermTargetWeight: 100,
+            finalTargetWeight: 100,
+            categories: [
+              { id: 'era_l1_phonics', name: 'Phonics & Reading', weight: 40, itemCount: 2, itemMaxScores: [100, 100] },
+              { id: 'era_l1_writing', name: 'Handwriting', weight: 20, itemCount: 1, itemMaxScores: [100] },
+              { id: 'era_l1_listening', name: 'Listening & Speaking', weight: 40, itemCount: 1, itemMaxScores: [100] }
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'level-foundation-program',
     name: 'Level Foundation Program',
     authorName: 'System',
     isAdmin: true,
-    levels: []
+    levels: [
+      {
+        id: 'fdn_level_a',
+        name: 'Foundation Level A',
+        attendanceWeight: 10,
+        subjects: [
+          {
+            id: 'fdn_a_english',
+            name: 'English Grammar',
+            targetWeight: 100,
+            midtermTargetWeight: 100,
+            finalTargetWeight: 100,
+            categories: [
+              { id: 'fdn_a_voc', name: 'Vocabulary', weight: 40, itemCount: 1, itemMaxScores: [100] },
+              { id: 'fdn_a_dict', name: 'Dictation', weight: 20, itemCount: 1, itemMaxScores: [100] },
+              { id: 'fdn_a_speak', name: 'Oral Speaking', weight: 40, itemCount: 1, itemMaxScores: [100] }
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'khmer-program',
     name: 'Khmer Program',
     authorName: 'System',
     isAdmin: true,
-    levels: []
+    levels: [
+      {
+        id: 'khmer_level_1',
+        name: 'Khmer Level 1',
+        attendanceWeight: 10,
+        subjects: [
+          {
+            id: 'kh_l1_reading',
+            name: 'Khmer Reading (អំណាន)',
+            targetWeight: 50,
+            midtermTargetWeight: 50,
+            finalTargetWeight: 50,
+            categories: [
+              { id: 'kh_l1_read_quizzes', name: 'Reading Quizzes', weight: 40, itemCount: 3, itemMaxScores: [100, 100, 100] },
+              { id: 'kh_l1_read_mid', name: 'Midterm Exam', weight: 20, itemCount: 1, itemMaxScores: [100], isMidterm: true },
+              { id: 'kh_l1_read_fin', name: 'Final Exam', weight: 40, itemCount: 1, itemMaxScores: [100], isFinal: true }
+            ]
+          },
+          {
+            id: 'kh_l1_writing',
+            name: 'Khmer Writing (សំណេរ)',
+            targetWeight: 50,
+            midtermTargetWeight: 50,
+            finalTargetWeight: 50,
+            categories: [
+              { id: 'kh_l1_writ_assignments', name: 'Writing Assignments', weight: 40, itemCount: 3, itemMaxScores: [100, 100, 100] },
+              { id: 'kh_l1_writ_mid', name: 'Midterm Essay', weight: 20, itemCount: 1, itemMaxScores: [100], isMidterm: true },
+              { id: 'kh_l1_writ_fin', name: 'Final Exam', weight: 40, itemCount: 1, itemMaxScores: [100], isFinal: true }
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'dpss-program',
@@ -670,7 +742,28 @@ export const SYSTEM_TEMPLATES = [
     name: 'Math Program',
     authorName: 'System',
     isAdmin: true,
-    levels: []
+    levels: [
+      {
+        id: 'math_level_1',
+        name: 'Math Level 1',
+        attendanceWeight: 10,
+        subjects: [
+          {
+            id: 'math_l1_arithmetic',
+            name: 'Mathematics',
+            targetWeight: 100,
+            midtermTargetWeight: 100,
+            finalTargetWeight: 100,
+            categories: [
+              { id: 'math_l1_quizzes', name: 'Weekly Quizzes', weight: 40, itemCount: 4, itemMaxScores: [100, 100, 100, 100] },
+              { id: 'math_l1_hw', name: 'Homework', weight: 20, itemCount: 1, itemMaxScores: [100] },
+              { id: 'math_l1_mid', name: 'Midterm Exam', weight: 20, itemCount: 1, itemMaxScores: [100], isMidterm: true },
+              { id: 'math_l1_fin', name: 'Final Exam', weight: 20, itemCount: 1, itemMaxScores: [100], isFinal: true }
+            ]
+          }
+        ]
+      }
+    ]
   },
   {
     id: 'mtis-program',

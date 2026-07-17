@@ -44,17 +44,17 @@
     }
   },
   "firestore": {
-    "/users/{userId}/levels/{levelId}": {
+    "/levels/{levelId}": {
       "schema": { "$ref": "#/entities/Level" },
-      "description": "User's customized levels"
+      "description": "Customized levels shared across all users"
     },
-    "/users/{userId}/classes/{classId}": {
+    "/classes/{classId}": {
       "schema": { "$ref": "#/entities/ClassRecord" },
-      "description": "User's class records (metadata)"
+      "description": "Class records (metadata) shared across all users"
     },
-    "/users/{userId}/classes/{classId}/students/{studentId}": {
+    "/classes/{classId}/students/{studentId}": {
       "schema": { "$ref": "#/entities/Student" },
-      "description": "Students within a class"
+      "description": "Students within a class shared across all users"
     }
   }
 }

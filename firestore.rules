@@ -64,45 +64,48 @@ service cloud.firestore {
 
     // --- Collection Matches ---
 
-    match /users/{userId} {
-      // Levels
-      match /levels/{levelId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) 
-          && isValidId(levelId) 
-          && isValidLevel(incoming());
-        allow update: if isOwner(userId) 
-          && isValidId(levelId) 
-          && isValidLevel(incoming())
-          && incoming().id == existing().id; // ID is immutable
-        allow delete: if isOwner(userId) && isValidId(levelId);
-      }
+    // Levels
+    match /levels/{levelId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidId(levelId) 
+        && isValidLevel(incoming());
+      allow update: if isSignedIn() 
+        && isValidId(levelId) 
+        && isValidLevel(incoming())
+        && incoming().id == existing().id; // ID is immutable
+      allow delete: if isSignedIn() && isValidId(levelId);
+    }
 
-      // Classes
-      match /classes/{classId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) 
-          && isValidId(classId) 
-          && isValidClassRecord(incoming());
-        allow update: if isOwner(userId) 
-          && isValidId(classId) 
-          && isValidClassRecord(incoming())
-          && incoming().id == existing().id; // ID is immutable
-        allow delete: if isOwner(userId) && isValidId(classId);
+    // Classes
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidId(classId) 
+        && isValidClassRecord(incoming());
+      allow update: if isSignedIn() 
+        && isValidId(classId) 
+        && isValidClassRecord(incoming())
+        && incoming().id == existing().id; // ID is immutable
+      allow delete: if isSignedIn() && isValidId(classId);
 
-        // Students Subcollection
-        match /students/{studentId} {
-          allow read: if isOwner(userId);
-          allow create: if isOwner(userId) 
-            && isValidId(studentId) 
-            && isValidStudent(incoming());
-          allow update: if isOwner(userId) 
-            && isValidId(studentId) 
-            && isValidStudent(incoming())
-            && incoming().id == existing().id; // ID is immutable
-          allow delete: if isOwner(userId) && isValidId(studentId);
-        }
+      // Students Subcollection
+      match /students/{studentId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() 
+          && isValidId(studentId) 
+          && isValidStudent(incoming());
+        allow update: if isSignedIn() 
+          && isValidId(studentId) 
+          && isValidStudent(incoming())
+          && incoming().id == existing().id; // ID is immutable
+        allow delete: if isSignedIn() && isValidId(studentId);
       }
+    }
+
+    // Templates
+    match /templates/{templateId} {
+      allow read, write: if isSignedIn();
     }
   }
 }
