@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, query, writeBatch } from 'firebase/firestore';
+import { collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, query, writeBatch, where } from 'firebase/firestore';
 import { db, auth, isFirebaseConfigured } from './firebase';
 import { Level, ClassRecord, Student } from '../types';
 
@@ -120,7 +120,7 @@ export async function saveLevel(userId: string, level: Level) {
 
   const path = `levels/${level.id}`;
   try {
-    await setDoc(doc(db, 'levels', level.id), level);
+    await setDoc(doc(db, 'levels', level.id), { ...level, authorId: userId });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -146,7 +146,7 @@ export async function saveLevelsBatch(userId: string, levels: Level[]) {
     const batch = writeBatch(db);
     levels.forEach(level => {
       const levelRef = doc(db, 'levels', level.id);
-      batch.set(levelRef, level);
+      batch.set(levelRef, { ...level, authorId: userId });
     });
     await batch.commit();
   } catch (error) {
@@ -195,7 +195,7 @@ export async function saveClassRecord(userId: string, classRecord: ClassRecord) 
     const { ...metadata } = classRecord;
     // @ts-ignore - explicitly removing students from the object if it exists
     delete metadata.students;
-    await setDoc(doc(db, 'classes', classRecord.id), metadata);
+    await setDoc(doc(db, 'classes', classRecord.id), { ...metadata, authorId: userId });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -216,7 +216,7 @@ export async function saveStudent(userId: string, classId: string, student: Stud
 
   const path = `classes/${classId}/students/${student.id}`;
   try {
-    await setDoc(doc(db, 'classes', classId, 'students', student.id), student);
+    await setDoc(doc(db, 'classes', classId, 'students', student.id), { ...student, authorId: userId });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -246,7 +246,7 @@ export async function saveStudentsBatch(userId: string, classId: string, batchSt
       const batch = writeBatch(db);
       chunk.forEach(student => {
         const studentRef = doc(db, 'classes', classId, 'students', student.id);
-        batch.set(studentRef, student);
+        batch.set(studentRef, { ...student, authorId: userId });
       });
       await batch.commit();
     }
@@ -291,7 +291,8 @@ export function subscribeToStudents(userId: string, classId: string, callback: (
   }
 
   const path = `classes/${classId}/students`;
-  const q = query(collection(db, 'classes', classId, 'students'));
+  // We filter by authorId for security even if the class is segmented
+  const q = query(collection(db, 'classes', classId, 'students'), where('authorId', '==', userId));
   return onSnapshot(q, (snapshot) => {
     const students = snapshot.docs.map(doc => doc.data() as Student);
     callback(students);
@@ -329,7 +330,7 @@ export function subscribeToLevels(userId: string, callback: (levels: Level[]) =>
   }
 
   const path = `levels`;
-  const q = query(collection(db, 'levels'));
+  const q = query(collection(db, 'levels'), where('authorId', '==', userId));
   return onSnapshot(q, (snapshot) => {
     const levels = snapshot.docs.map(doc => doc.data() as Level);
     callback(levels);
@@ -348,7 +349,7 @@ export function subscribeToClasses(userId: string, callback: (classes: ClassReco
   }
 
   const path = `classes`;
-  const q = query(collection(db, 'classes'));
+  const q = query(collection(db, 'classes'), where('authorId', '==', userId));
   return onSnapshot(q, (snapshot) => {
     const classes = snapshot.docs.map(doc => doc.data() as ClassRecord);
     callback(classes);

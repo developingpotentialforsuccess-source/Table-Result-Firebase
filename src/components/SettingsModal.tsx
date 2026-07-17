@@ -1716,48 +1716,90 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                       
                       <div className="flex flex-col sm:flex-row items-stretch lg:items-center gap-3 w-full lg:w-auto shrink-0 relative z-10">
                         {user && (
-                          <button 
-                            onClick={async () => {
-                              const templateName = prompt("Enter a name for this new template (based on current class):", `${level.name} Template`);
-                              if (!templateName) return;
-                              
-                              try {
-                                const templateId = Math.random().toString(36).substring(2, 9);
-                                await setDoc(doc(db, `templates`, templateId), {
-                                  name: templateName,
-                                  authorId: user.uid,
-                                  authorName: user.displayName || user.email || 'Teacher',
-                                  levels: [level]
-                                });
-                                fetchTemplates();
-                                alert("Current class saved as a template successfully!\n\nWhere to find it:\nIt is saved under 'My Saved Library' folder on this screen. Scroll down or go back to programs and click 'My Saved Library' to view and apply it.");
-                              } catch (e) {
-                                console.error("Error saving current class as template:", e);
-                                alert("Failed to save template.");
-                              }
-                            }} 
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl hover:brightness-110 active:scale-95 transition-all text-xs font-black shadow-sm"
-                          >
-                            <Save className="w-4 h-4" />
-                            Save Current Class
-                          </button>
+                          <div className="relative group/save">
+                            <button 
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl hover:brightness-110 active:scale-95 transition-all text-xs font-black shadow-sm"
+                            >
+                              <Save className="w-4 h-4" />
+                              Save Class Template
+                            </button>
+                            
+                            {/* Dropdown for specific program saving */}
+                            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden hidden group-hover/save:block z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                              <div className="p-3 bg-slate-50 border-b border-slate-100">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Program Target</span>
+                              </div>
+                              <div className="p-1.5 space-y-1">
+                                {SYSTEM_TEMPLATES.map(prog => (
+                                  <button
+                                    key={prog.id}
+                                    onClick={async () => {
+                                      const templateName = prompt(`Save to ${prog.name} - Enter template name:`, `${level.name} Template`);
+                                      if (!templateName) return;
+                                      
+                                      try {
+                                        // If admin, we can push to system collection potentially, 
+                                        // but for now we push to user's saved templates tagged with this program
+                                        const templateId = Math.random().toString(36).substring(2, 9);
+                                        await setDoc(doc(db, "templates", templateId), {
+                                          name: templateName,
+                                          authorId: user.uid,
+                                          authorName: user.displayName || user.email || 'Teacher',
+                                          levels: [level],
+                                          programId: prog.id, // Tag with program
+                                          timestamp: Date.now()
+                                        });
+                                        fetchTemplates();
+                                        alert(`Saved successfully to ${prog.name} context! ✨`);
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert("Error saving template.");
+                                      }
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors flex items-center gap-2"
+                                  >
+                                    <FolderOpen className="w-3.5 h-3.5 opacity-50" />
+                                    {prog.name}
+                                  </button>
+                                ))}
+                                <button
+                                  onClick={async () => {
+                                    const templateName = prompt("Save to My Saved Library - Enter template name:", `${level.name} Template`);
+                                    if (!templateName) return;
+                                    
+                                    try {
+                                      const templateId = Math.random().toString(36).substring(2, 9);
+                                      await setDoc(doc(db, "templates", templateId), {
+                                        name: templateName,
+                                        authorId: user.uid,
+                                        authorName: user.displayName || user.email || 'Teacher',
+                                        levels: [level],
+                                        timestamp: Date.now()
+                                      });
+                                      fetchTemplates();
+                                      alert("Saved to your personal library! 💝");
+                                    } catch (e) {
+                                      console.error(e);
+                                      alert("Error saving.");
+                                    }
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-[11px] font-black text-pink-600 hover:bg-pink-50 rounded-lg transition-colors flex items-center gap-2 border-t border-slate-100 pt-2 mt-1"
+                                >
+                                  <Heart className="w-3.5 h-3.5" />
+                                  My Private Library
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         )}
-                        {onOpenTemplateModal && (
-                          <button 
-                            onClick={() => { onOpenTemplateModal(); onClose(); }} 
-                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-purple-700 border border-purple-200 rounded-xl hover:bg-purple-50 hover:shadow-md active:scale-95 transition-all text-xs font-black shadow-xs"
-                          >
-                            <Copy className="w-4 h-4 text-purple-500" />
-                            Use Class as Template
-                          </button>
-                        )}
+                        
                         {user ? (
                           <button 
                             onClick={handleSaveTemplate} 
                             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:brightness-110 active:scale-95 transition-all text-xs font-black shadow-md shadow-indigo-150"
                           >
                             <Save className="w-4 h-4" />
-                            Save All My Levels
+                            Sync All Levels
                           </button>
                         ) : (
                           <button 
@@ -1765,7 +1807,7 @@ export default function SettingsModal({ level, levels, onUpdateLevel, onReplaceL
                             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-indigo-700 rounded-xl hover:bg-indigo-50 hover:shadow-md active:scale-95 transition-all text-xs font-black border border-indigo-100 shadow-xs"
                           >
                             <User className="w-4 h-4 text-indigo-500" />
-                            Sign In to Save Templates
+                            Sign In to Sync
                           </button>
                         )}
                       </div>

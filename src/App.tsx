@@ -35,6 +35,7 @@ import {
   Eye,
   EyeOff,
   User as UserIcon,
+  UserPlus,
   BookOpen,
   AlertTriangle,
   Info,
@@ -83,6 +84,8 @@ import {
   deleteStudent,
   deleteClassRecordRef,
   deleteLevel,
+  getLocalLevels,
+  getLocalClasses,
   getLocalStudents,
 } from "./lib/firestoreUtils";
 import { isMidtermCategory, isFinalCategory } from "./lib/categoryUtils";
@@ -414,9 +417,11 @@ export function sortLevels(levelsList: Level[]): Level[] {
   });
 }
 
+import { StudentManager } from "./components/StudentManager";
+
 export default function App() {
-  const [user, setUser] = useState<User | null>({ uid: 'default_teacher', displayName: 'Teacher' } as any);
-  const [authLoading, setAuthLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [levels, setLevels] = useState<Level[]>([]);
   const [classRecords, setClassRecords] = useState<ClassRecord[]>([]);
@@ -461,7 +466,7 @@ export default function App() {
   const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeView, setActiveView] = useState<'grades' | 'attendance'>('grades');
+  const [activeView, setActiveView] = useState<'grades' | 'students' | 'attendance'>('grades');
 
   const [paperStyle, setPaperStyle] = useState<string>(() => {
     return localStorage.getItem("gradecalc_paper_style") || "white_smooth";
@@ -480,7 +485,7 @@ export default function App() {
       return [];
     }
   });
-  const [currentTab, setCurrentTab] = useState<"grades" | "dashboard">("grades");
+  const [currentTab, setCurrentTab] = useState<"grades" | "students" | "dashboard">("grades");
 
   const [resultMode, setResultMode] = useState<"full" | "midterm" | "final">(
     () => {
@@ -1363,7 +1368,7 @@ export default function App() {
   const handleUpdateSettings = (newSettings: TeacherSettings) => {
     if (!currentRecord || !user) return;
     const updated = { ...currentRecord, settings: newSettings };
-    saveClassRecord(user.uid, updated);
+    updateRecordLocallyAndDebounceSave(updated);
   };
 
   const handleUpdateLevel = (updatedLevel: Level) => {
@@ -1394,8 +1399,50 @@ export default function App() {
   const handleUpdateCurrentRecord = (field: keyof ClassRecord, value: any) => {
     if (!currentRecord || !user) return;
     const updated = { ...currentRecord, [field]: value };
-    saveClassRecord(user.uid, updated);
+    updateRecordLocallyAndDebounceSave(updated);
   };
+
+  // Migration logic for users who were using the "default_teacher" mock
+  useEffect(() => {
+    if (!user || user.uid === 'default_teacher') return;
+
+    const performMigration = async () => {
+      const hasMigrated = localStorage.getItem(`gradecalc_migrated_${user.uid}`);
+      if (hasMigrated) return;
+
+      const localLevels = getLocalLevels('default_teacher');
+      const localClasses = getLocalClasses('default_teacher');
+
+      if (localLevels.length > 0 || localClasses.length > 0) {
+        console.log(`[Migration] Migrating ${localLevels.length} levels and ${localClasses.length} classes for user ${user.uid}`);
+        
+        try {
+          if (localLevels.length > 0) {
+            await saveLevelsBatch(user.uid, localLevels);
+          }
+          
+          if (localClasses.length > 0) {
+            for (const cls of localClasses) {
+              await saveClassRecord(user.uid, cls);
+              const classStudents = getLocalStudents('default_teacher', cls.id);
+              if (classStudents.length > 0) {
+                await saveStudentsBatch(user.uid, cls.id, classStudents);
+              }
+            }
+          }
+          
+          localStorage.setItem(`gradecalc_migrated_${user.uid}`, 'true');
+          console.log("[Migration] Migration completed successfully.");
+        } catch (err) {
+          console.error("[Migration] Error during migration:", err);
+        }
+      } else {
+        localStorage.setItem(`gradecalc_migrated_${user.uid}`, 'true');
+      }
+    };
+
+    performMigration();
+  }, [user]);
 
   const handleCreateNewRecord = () => {
     if (!user) return;
@@ -2319,32 +2366,40 @@ export default function App() {
                   ))}
                 </select>
                 <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-2 py-1.5 text-xs font-bold text-slate-700 bg-white border-r border-slate-200 focus:ring-0 cursor-pointer outline-none w-20 truncate"
-                  title="Filter by year"
+                  value={currentRecordId}
+                  onChange={(e) => setCurrentRecordId(e.target.value)}
+                  className="px-2 py-1.5 text-xs font-black text-blue-700 bg-blue-50 focus:ring-0 cursor-pointer outline-none min-w-[150px] max-w-[200px] truncate"
+                  title="Select active class"
                 >
-                  <option value="all">Year</option>
-                  {uniqueYears.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedTerm}
-                  onChange={(e) => setSelectedTerm(e.target.value)}
-                  className="px-2 py-1.5 text-xs font-bold text-slate-700 bg-white focus:ring-0 cursor-pointer outline-none w-20 truncate"
-                  title="Filter by term"
-                >
-                  <option value="all">Term</option>
-                  {uniqueTerms.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
+                  <optgroup label="Pinned Classes">
+                    {filteredRecords.filter(r => pinnedIds.includes(r.id)).map(r => (
+                      <option key={r.id} value={r.id}>📌 {r.className} ({r.teacherName})</option>
+                    ))}
+                    {pinnedIds.length === 0 && <option disabled>No pinned classes</option>}
+                  </optgroup>
+                  <optgroup label="All Classes">
+                    {filteredRecords.filter(r => !pinnedIds.includes(r.id)).map(r => (
+                      <option key={r.id} value={r.id}>{r.className} ({r.teacherName})</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
+
+              <button
+                onClick={() => togglePin(currentRecordId)}
+                className={`p-1.5 rounded-lg border transition-all ${pinnedIds.includes(currentRecordId) ? 'bg-amber-100 border-amber-300 text-amber-600 shadow-inner' : 'bg-white border-slate-300 text-slate-400 hover:text-slate-600'}`}
+                title={pinnedIds.includes(currentRecordId) ? "Unpin class" : "Pin class for quick access"}
+              >
+                <Pin className={`w-4 h-4 ${pinnedIds.includes(currentRecordId) ? 'fill-current' : ''}`} />
+              </button>
+
+              <button
+                onClick={handleCreateNewRecord}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors border border-blue-700 rounded-lg shadow-sm whitespace-nowrap cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New Class
+              </button>
 
               <button
                 onClick={() => setShowArchived(!showArchived)}
@@ -2462,7 +2517,7 @@ export default function App() {
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all ${currentTab === "grades" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600 hover:text-slate-800"}`}
                 >
                   <Table2 className="w-3.5 h-3.5" />
-                  Table
+                  Grades
                 </button>
                 <button
                   onClick={() => setCurrentTab("dashboard")}
@@ -2481,57 +2536,6 @@ export default function App() {
                 <Settings className="w-3.5 h-3.5" />
                 Level Config
               </button>
-
-              <div className="flex gap-1">
-                <div className="relative group/backup">
-                  <button
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors border border-emerald-200 rounded-lg shadow-sm whitespace-nowrap cursor-pointer"
-                  >
-                    <Database className="w-3.5 h-3.5 text-emerald-600" />
-                    Backup
-                    <ChevronDown className="w-3 h-3 opacity-50" />
-                  </button>
-                  <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover/backup:opacity-100 group-hover/backup:visible transition-all z-50 overflow-hidden">
-                    <div className="p-2 flex flex-col">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 py-1 mb-1">Timeframe</span>
-                      <button onClick={() => handleDownloadFullBackup('1d')} className="px-3 py-2 text-xs font-bold text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">The last 1 day</button>
-                      <button onClick={() => handleDownloadFullBackup('3d')} className="px-3 py-2 text-xs font-bold text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">The last 3 days</button>
-                      <button onClick={() => handleDownloadFullBackup('1w')} className="px-3 py-2 text-xs font-bold text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">The last 1 week</button>
-                      <button onClick={() => handleDownloadFullBackup('1m')} className="px-3 py-2 text-xs font-bold text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">The last 1 month</button>
-                      <button onClick={() => handleDownloadFullBackup('3m')} className="px-3 py-2 text-xs font-bold text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">The last 3 months</button>
-                      <button onClick={() => handleDownloadFullBackup('6m')} className="px-3 py-2 text-xs font-bold text-left text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors">The last 6 months</button>
-                      <button onClick={() => handleDownloadFullBackup('all')} className="px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg transition-colors mt-1">All Time (Full Backup)</button>
-                      <div className="border-t border-slate-100 my-1"></div>
-                      <button 
-                        onClick={handleSyncToDrive} 
-                        className="px-3 py-2 text-xs font-bold text-left text-blue-700 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        Sync to Google Drive
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <label
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors border border-indigo-200 rounded-lg shadow-sm whitespace-nowrap cursor-pointer"
-                  title="Restore from Backup (.JSON)"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-indigo-600" />
-                  Restore
-                  <input
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        handleImportBackup(e.target.files[0]);
-                      }
-                      e.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
 
               {/* Export Button */}
               <div className="relative">
@@ -2785,10 +2789,10 @@ export default function App() {
           </div>
         )}
 
-        {/* Class Record Meta Info */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5 flex flex-wrap gap-4 sm:gap-6 items-center shrink-0">
-          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-slate-50 p-2 rounded-lg border border-slate-100">
-            <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+        {/* Class Record Meta Info - Enlarged Profile Container */}
+        <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8 flex flex-wrap gap-6 sm:gap-8 items-center shrink-0 transition-all hover:shadow-2xl hover:border-blue-100">
+          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-slate-50 p-3 rounded-xl border border-slate-100 group transition-all">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 group-hover:text-slate-600 transition-colors">
               Term / Semester
             </label>
             <input
@@ -2797,12 +2801,12 @@ export default function App() {
               onChange={(e) =>
                 handleUpdateCurrentRecord("termName", e.target.value)
               }
-              className="w-full text-base font-bold text-slate-900 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 transition-colors"
+              className="w-full text-lg font-black text-slate-900 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 transition-all"
               placeholder="e.g. Term 1, 2024"
             />
           </div>
-          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-blue-50/50 p-2 rounded-lg border border-blue-100">
-            <label className="block text-[10px] font-extrabold text-blue-400 uppercase tracking-wider mb-1">
+          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-blue-50/50 p-3 rounded-xl border border-blue-100 group transition-all">
+            <label className="block text-[10px] font-black text-blue-500 uppercase tracking-[0.2em] mb-1 group-hover:text-blue-700 transition-colors">
               Class Name
             </label>
             <input
@@ -2811,17 +2815,17 @@ export default function App() {
               onChange={(e) =>
                 handleUpdateCurrentRecord("className", e.target.value)
               }
-              className="w-full text-base font-bold text-blue-900 border-b-2 border-transparent hover:border-blue-200 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 transition-colors"
+              className="w-full text-lg font-black text-blue-900 border-b-2 border-transparent hover:border-blue-200 focus:border-blue-500 focus:outline-none bg-transparent px-1 py-0.5 transition-all"
               placeholder="e.g. Morning Class A"
             />
           </div>
-          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-emerald-50/50 p-2 rounded-lg border border-emerald-100">
-            <label className="block text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider mb-1">
+          <div className="flex-1 min-w-[140px] sm:min-w-[200px] bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 group transition-all">
+            <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-1 group-hover:text-emerald-700 transition-colors">
               Teacher
             </label>
             <div className="flex items-center gap-2 relative">
               <div
-                className={`w-6 h-6 rounded flex shrink-0 items-center justify-center text-[10px] font-black ${getTeacherColor(currentRecord.teacherName)}`}
+                className={`w-8 h-8 rounded-lg flex shrink-0 items-center justify-center text-xs font-black shadow-sm ${getTeacherColor(currentRecord.teacherName)}`}
               >
                 {getInitials(currentRecord.teacherName)}
               </div>
@@ -2832,7 +2836,7 @@ export default function App() {
                 onChange={(e) =>
                   handleUpdateCurrentRecord("teacherName", e.target.value)
                 }
-                className="w-full text-base font-bold text-emerald-900 border-b-2 border-transparent hover:border-emerald-200 focus:border-emerald-500 focus:outline-none bg-transparent px-1 py-0.5 transition-colors"
+                className="w-full text-lg font-black text-emerald-900 border-b-2 border-transparent hover:border-emerald-200 focus:border-emerald-500 focus:outline-none bg-transparent px-1 py-0.5 transition-all"
                 placeholder="Teacher Name"
               />
               <datalist id="sample-teachers">
@@ -2843,22 +2847,22 @@ export default function App() {
             </div>
           </div>
           {["DPS", "DPSS", "BPS", "BPSS"].includes((accessCode || "").toUpperCase().trim()) && (
-            <div className="flex flex-col min-w-[140px] sm:min-w-[180px] justify-center gap-1.5 mt-2 sm:mt-0">
+            <div className="flex flex-row sm:flex-col items-center justify-center gap-2 shrink-0">
                <button 
                   onClick={handlePublishTemplate}
-                  className="bg-purple-50 hover:bg-purple-100 text-purple-700 text-[11px] font-bold py-1 px-2 rounded flex items-center justify-center gap-1 transition-colors border border-purple-200"
+                  className="bg-purple-100 hover:bg-purple-600 hover:text-white text-purple-700 text-[10px] font-black py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all border border-purple-200 shadow-sm uppercase tracking-widest whitespace-nowrap"
                   title="Share this level's structure as a template"
                >
-                  <FolderOpen className="w-3 h-3" />
-                  Share this template
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  Share
                </button>
                <button 
                   onClick={handleSaveAdminTemplate}
-                  className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold py-1 px-2 rounded flex items-center justify-center gap-1 transition-colors border border-blue-200"
+                  className="bg-blue-100 hover:bg-blue-600 hover:text-white text-blue-700 text-[10px] font-black py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all border border-blue-200 shadow-sm uppercase tracking-widest whitespace-nowrap"
                   title="Save current class profile to template library and sync"
                >
-                  <RefreshCw className="w-3 h-3" />
-                  Save as a template
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Save
                </button>
             </div>
           )}
@@ -3727,6 +3731,13 @@ export default function App() {
                   <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                   Student Rosters
                 </button>
+                <button 
+                  onClick={() => setActiveView('students')}
+                  className={`text-base sm:text-lg font-bold flex items-center gap-2 pb-1 transition-colors whitespace-nowrap shrink-0 ${activeView === 'students' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Students
+                </button>
                 {(currentRecord?.settings?.showAttendance !== false) && (
                   <button 
                     onClick={() => setActiveView('attendance')}
@@ -4060,6 +4071,13 @@ export default function App() {
               </div>
             ) : currentTab === "dashboard" ? (
               <Dashboard currentRecord={currentRecord} students={students} currentLevel={currentLevel} resultMode={resultMode} />
+            ) : activeView === 'students' ? (
+              <StudentManager 
+                students={students}
+                onAddStudent={handleAddStudent}
+                onUpdateStudentField={handleUpdateStudentField}
+                onDeleteStudent={handleDeleteStudent}
+              />
             ) : activeView === 'attendance' ? (
               <AttendanceTracker 
                 students={students}

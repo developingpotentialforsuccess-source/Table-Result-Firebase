@@ -66,40 +66,49 @@ service cloud.firestore {
 
     // Levels
     match /levels/{levelId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.authorId == request.auth.uid;
       allow create: if isSignedIn() 
         && isValidId(levelId) 
-        && isValidLevel(incoming());
+        && isValidLevel(incoming())
+        && incoming().authorId == request.auth.uid;
       allow update: if isSignedIn() 
         && isValidId(levelId) 
         && isValidLevel(incoming())
-        && incoming().id == existing().id; // ID is immutable
-      allow delete: if isSignedIn() && isValidId(levelId);
+        && incoming().id == existing().id
+        && existing().authorId == request.auth.uid
+        && incoming().authorId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(levelId) && resource.data.authorId == request.auth.uid;
     }
 
     // Classes
     match /classes/{classId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.authorId == request.auth.uid;
       allow create: if isSignedIn() 
         && isValidId(classId) 
-        && isValidClassRecord(incoming());
+        && isValidClassRecord(incoming())
+        && incoming().authorId == request.auth.uid;
       allow update: if isSignedIn() 
         && isValidId(classId) 
         && isValidClassRecord(incoming())
-        && incoming().id == existing().id; // ID is immutable
-      allow delete: if isSignedIn() && isValidId(classId);
+        && incoming().id == existing().id
+        && existing().authorId == request.auth.uid
+        && incoming().authorId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(classId) && resource.data.authorId == request.auth.uid;
 
       // Students Subcollection
       match /students/{studentId} {
-        allow read: if isSignedIn();
+        allow read: if isSignedIn() && resource.data.authorId == request.auth.uid;
         allow create: if isSignedIn() 
           && isValidId(studentId) 
-          && isValidStudent(incoming());
+          && isValidStudent(incoming())
+          && incoming().authorId == request.auth.uid;
         allow update: if isSignedIn() 
           && isValidId(studentId) 
           && isValidStudent(incoming())
-          && incoming().id == existing().id; // ID is immutable
-        allow delete: if isSignedIn() && isValidId(studentId);
+          && incoming().id == existing().id
+          && existing().authorId == request.auth.uid
+          && incoming().authorId == request.auth.uid;
+        allow delete: if isSignedIn() && isValidId(studentId) && resource.data.authorId == request.auth.uid;
       }
     }
 
