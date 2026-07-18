@@ -300,7 +300,6 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                   <td className="px-2 py-2 border-r border-slate-200 text-center font-bold text-emerald-700 bg-emerald-50/20">{metrics.frequency.toFixed(2)}</td>
                   {visibleDates.map((date, i) => {
                       const dateStr = date.toISOString().split('T')[0];
-                      const isSaturday = date.getDay() === 6;
 
                       if (settings.dailySessions === 2) {
                         const s1Key = `${dateStr}_S1`;
@@ -308,15 +307,15 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                         const s1Raw = student.attendanceRecords?.[s1Key];
                         const s2Raw = student.attendanceRecords?.[s2Key];
                         
-                        const s1Status = (isEnglish && isSaturday && (!s1Raw || s1Raw === 'None')) ? 'Present' : s1Raw;
-                        const s2Status = (isEnglish && isSaturday && (!s2Raw || s2Raw === 'None')) ? 'Present' : s2Raw;
+                        const s1Status = (!s1Raw || s1Raw === 'None') ? 'Present' : s1Raw;
+                        const s2Status = (!s2Raw || s2Raw === 'None') ? 'Present' : s2Raw;
 
                         return (
                           <React.Fragment key={`cell_${i}`}>
                             <td className="px-0 py-0 border-r border-slate-200 text-center h-full bg-blue-50/5">
                               <button 
                                 className={`w-full h-full min-h-[48px] text-lg hover:bg-slate-100 transition-colors ${getStatusColor(s1Status, 1)}`}
-                                onClick={() => onUpdateAttendanceRecord(student.id, s1Key, toggleStatus(s1Raw))}
+                                onClick={() => onUpdateAttendanceRecord(student.id, s1Key, toggleStatus(s1Status))}
                               >
                                 {getStatusLabel(s1Status)}
                               </button>
@@ -324,7 +323,7 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                             <td className="px-0 py-0 border-r border-slate-200 text-center h-full bg-purple-50/5">
                               <button 
                                 className={`w-full h-full min-h-[48px] text-lg hover:bg-slate-100 transition-colors ${getStatusColor(s2Status, 2)}`}
-                                onClick={() => onUpdateAttendanceRecord(student.id, s2Key, toggleStatus(s2Raw))}
+                                onClick={() => onUpdateAttendanceRecord(student.id, s2Key, toggleStatus(s2Status))}
                               >
                                 {getStatusLabel(s2Status)}
                               </button>
@@ -334,13 +333,13 @@ export const AttendanceTracker: React.FC<AttendanceTrackerProps> = ({
                       } else {
                         const s1Key = `${dateStr}_S1`;
                         const s1Raw = student.attendanceRecords?.[s1Key];
-                        const s1Status = (isEnglish && isSaturday && (!s1Raw || s1Raw === 'None')) ? 'Present' : s1Raw;
+                        const s1Status = (!s1Raw || s1Raw === 'None') ? 'Present' : s1Raw;
 
                         return (
                           <td key={`cell_${i}`} className="px-0 py-0 border-r border-slate-200 text-center h-full">
                             <button 
                               className={`w-full h-full min-h-[48px] text-lg hover:bg-slate-100 transition-colors ${getStatusColor(s1Status, 1)}`}
-                              onClick={() => onUpdateAttendanceRecord(student.id, s1Key, toggleStatus(s1Raw))}
+                              onClick={() => onUpdateAttendanceRecord(student.id, s1Key, toggleStatus(s1Status))}
                             >
                                 {getStatusLabel(s1Status)}
                             </button>
